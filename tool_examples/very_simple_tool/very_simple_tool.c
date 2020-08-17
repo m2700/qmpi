@@ -1284,7 +1284,12 @@ _EXTERN_C_ int E_File_write_shared(MPI_File fh, const void *buf, int count, MPI_
 }
 /* ================== C Wrappers for MPI_Finalize ================== */
 
-_EXTERN_C_ int E_Finalize( int i,vector * v) { 
+_EXTERN_C_ int E_Finalize( int i,vector * v) {
+  char *fin_debug = getenv("FINALIZE_DEBUG_CONFIRM");
+  if (fin_debug == NULL || strcmp(fin_debug, "1") == 0)
+  {
+    printf("finalize called: very simple tool\n");
+  }
   void* f_dl=NULL;
   QMPI_TABLE_QUERY(138,&f_dl,(*VECTOR_GET(v,i)).table );
   int ret=EXEC_FUNC(f_dl,i,138,v);
