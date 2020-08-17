@@ -1,8 +1,8 @@
 CC=mpicc
-CFLAGS=-L../ -std=c99 -W -Wall  -Werror
+CFLAGS=-std=c99 -W -Wall  -Werror
 ODIR=./
 
-LIBS= -lqmpi -ldl 
+LDFLAGS= -L../ -lqmpi -ldl 
 
 DEPS =libqmpi
 
@@ -15,7 +15,7 @@ $(ODIR)/%.o: %.c
 
 main: $(OBJ)
 	cd .. && make 
-	$(CC) -g -o $@  $^ $(CFLAGS) $(LIBS)
+	$(CC) -g -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 .PHONY: clean
 clean:
