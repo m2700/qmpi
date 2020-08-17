@@ -1,5 +1,5 @@
 CC= mpicc
-CFLAGS=  -std=c99 -g
+CFLAGS=  -std=c99 -g -O0
 OBJ = qmpi.o
 ARFLAGS = rsv
 ODIR = .
