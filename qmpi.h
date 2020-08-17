@@ -434,7 +434,7 @@ typedef void* dynamic_lib_handle;
 
 struct dynamic_lib {
 	//TODO: fix this path variable (fixed size array )
-        char                            path[100];
+        char                            path[1000];
 //        char*                         path;
         dynamic_lib_handle              handle;
         char*                           mpi_interceptions[NUM_MPI_FUNCS ];
