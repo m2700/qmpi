@@ -2,7 +2,7 @@ CC=mpicc
 CFLAGS=-std=c99 -W -Wall  -Werror
 ODIR=./
 
-LDFLAGS= -L../ -lqmpi -ldl 
+LDFLAGS= -L../ -lqmpi -ldl -rdynamic
 
 DEPS =libqmpi
 

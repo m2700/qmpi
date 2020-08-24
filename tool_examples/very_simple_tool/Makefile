@@ -1,5 +1,5 @@
 CC= mpicc
-CFLAGS= -I../../ -std=c99 -fPIC -rdynamic -shared -lqmpi
+CFLAGS= -I../.. -L../.. -std=c99 -fPIC -shared -lqmpi
 OBJ = very_simple_tool
 ODIR = ./
 
