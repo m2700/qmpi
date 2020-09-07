@@ -305,10 +305,10 @@ int exec_func (void* func_ptr,int level ,_MPI_funcs func_index, vector* v , ...)
 		int allgather_arg5			=va_arg (argp, int);
 		MPI_Datatype allgather_arg6 =va_arg (argp,MPI_Datatype);
 		MPI_Comm  allgather_arg7	=va_arg (argp,MPI_Comm);
-		printf ("Allgather exec func switch case  -0-\n");
+		// printf ("Allgather exec func switch case  -0-\n");
 		ret=  (allgather_ptr) (allgather_arg1, allgather_arg2, allgather_arg3, allgather_arg4, allgather_arg5, allgather_arg6, allgather_arg7,level,v);
 		break;
-	case 7	:	    
+	case 7	:
 		//int QMPI_Allgatherv (const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int displs[], MPI_Datatype recvtype, MPI_Comm comm, int level ,vector* v);
 		va_start (argp,v);
 		typedef int  (*allgatherv_func) (const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int displs[], MPI_Datatype recvtype, MPI_Comm comm, int level ,vector* v);
