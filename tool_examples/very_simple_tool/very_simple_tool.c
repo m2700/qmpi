@@ -3042,18 +3042,40 @@ _EXTERN_C_ int E_Win_wait(MPI_Win win, int i,vector * v) {
 }
 /* ================== C Wrappers for MPI_Wtick ================== */
 
-_EXTERN_C_ double E_Wtick( int i,  vector* v) { 
+_EXTERN_C_ double E_Wtick( int i,  vector* v) {
   void* f_dl=NULL;
   QMPI_TABLE_QUERY(358,&f_dl,(*VECTOR_GET(v,i)).table );
-  int ret=EXEC_FUNC(f_dl,i,358,v);
-  return ret;
+
+
+  // int ret=EXEC_FUNC(f_dl,i,358,v);
+  int level=QMPI_GET_LEVEL(i, 358, v);
+  int ret =0;
+  if  (f_dl == NULL) {
+    printf ("function pointer for execution is null,function can't be executed , returns \n");
+    return ret;
+  } else {
+      typedef double (*wtick_func) (int level,  vector* v);
+      wtick_func QMPI_Wtick_ptr = (wtick_func) f_dl;
+      double ret_Wtick = (QMPI_Wtick_ptr) (level, v);
+      return ret_Wtick;
+  }
 }
 /* ================== C Wrappers for MPI_Wtime ================== */
 
-_EXTERN_C_ double E_Wtime( int i,vector * v) { 
+_EXTERN_C_ double E_Wtime( int i,vector * v) {
   void* f_dl=NULL;
   QMPI_TABLE_QUERY(359,&f_dl,(*VECTOR_GET(v,i)).table );
-  int ret=EXEC_FUNC(f_dl,i,359,v);
-  return ret;
-}
 
+  // int ret=EXEC_FUNC(f_dl,i,359,v);
+  int level=QMPI_GET_LEVEL(i, 359, v);
+  int ret =0;
+  if  (f_dl == NULL) {
+    printf ("function pointer for execution is null,function can't be executed , returns \n");
+    return ret;
+  } else {
+      typedef double  (*wtime_func)  (int level,  vector* v);
+      wtime_func QMPI_Wtime_ptr =  (wtime_func) f_dl;
+      double ret_Wtime =  (QMPI_Wtime_ptr)  ( level, v);
+      return ret_Wtime;
+  }
+}
