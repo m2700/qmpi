@@ -1,10 +1,15 @@
 CC= mpicc
-CFLAGS= -I../.. -L../.. -std=c99 -fPIC -shared -lqmpi -O3
+CFLAGS= -I../.. -I.. -L../.. -std=c99 -fPIC -shared -lqmpi -O3
 
--include $(wildcard *.d)
+-include function_counter.d
 
 ./function_counter.so: ./function_counter.c
 	$(CC) -MMD $(CFLAGS) -o $@ $<
 
+.PHONY: clean
 clean:
 	rm -f *.so *.d
+
+.PHONY: fmt
+fmt:
+	clang-format -i *.c *.h

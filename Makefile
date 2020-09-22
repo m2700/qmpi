@@ -13,6 +13,7 @@ libqmpi.a: $(OBJ)
 	ar $(ARFLAGS) $@ $^
 	ar -t $@
 
+.PHONY: clean
 clean:
 	rm -f $(ODIR)/*.o $(ODIR)/*.a *~ core $(INCDIR)/*~
 	rm -rf *.dSYM/ main
