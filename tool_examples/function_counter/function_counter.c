@@ -22,11 +22,11 @@
 #include <time.h>
 
 #include "qmpi.h"
+#include <assert.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #include "counter.h"
 #include "interceptions.h"
@@ -35,18 +35,34 @@
 
 int E_Finalize(int i, vector *v) {
     void *f_dl = NULL;
-    counter[138]++;
+    counters[138]++;
     QMPI_TABLE_QUERY(138, &f_dl, (*VECTOR_GET(v, i)).table);
 
-    int *all_counts[360];
-    int red_scc = MPI_Allreduce(counter, all_counts, 360, MPI_INT, MPI_SUM,
-                                MPI_COMM_WORLD);
-    assert(red_scc == MPI_SUCCESS);
+    int counters_copy[NUM_MPI_FUNCS];
+    for (size_t i = 0; i < NUM_MPI_FUNCS; i++) {
+        counters_copy[i] = counters[i];
+    }
 
-    for (size_t fi = 0; fi < 360; fi++) {
-        if (all_counts[fi] != 0) {
-            printf("MPI%s: %u\n", interceptions[fi] + 1,
-                   (unsigned)all_counts[fi]);
+    int all_counts[NUM_MPI_FUNCS];
+    int red_scc = MPI_Reduce(counters_copy, all_counts, NUM_MPI_FUNCS, MPI_INT,
+                             MPI_SUM, 0, MPI_COMM_WORLD);
+    if (red_scc != MPI_SUCCESS) {
+        return red_scc;
+    }
+
+    int rank;
+    int cr_scc = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (cr_scc != MPI_SUCCESS) {
+        return red_scc;
+    }
+
+    char *fin_debug = getenv("FINALIZE_DEBUG_CONFIRM");
+    if (rank == 0 && (fin_debug == NULL || strcmp(fin_debug, "1") == 0)) {
+        for (size_t fi = 0; fi < NUM_MPI_FUNCS; fi++) {
+            if (all_counts[fi] != 0) {
+                printf("MPI%s: %u\n", interceptions[fi] + 1,
+                       (unsigned)all_counts[fi]);
+            }
         }
     }
 
@@ -58,7 +74,7 @@ int E_Finalize(int i, vector *v) {
 
 int E_Init(int *argc, char ***argv, int i, vector *v) {
     void *f_dl = NULL;
-    counter[200]++;
+    counters[200]++;
     QMPI_TABLE_QUERY(200, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 200, v, argc, argv);
     return ret;
@@ -67,7 +83,7 @@ int E_Init(int *argc, char ***argv, int i, vector *v) {
 
 int E_Abort(MPI_Comm comm, int errorcode, int i, vector *v) {
     void *f_dl = NULL;
-    counter[0]++;
+    counters[0]++;
     QMPI_TABLE_QUERY(0, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 0, v, comm, errorcode);
     return ret;
@@ -80,7 +96,7 @@ int E_Accumulate(const void *origin_addr, int origin_count,
                  MPI_Datatype target_datatype, MPI_Op op, MPI_Win win, int i,
                  vector *v) {
     void *f_dl = NULL;
-    counter[1]++;
+    counters[1]++;
     QMPI_TABLE_QUERY(1, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 1, v, origin_addr, origin_count,
                         origin_datatype, target_rank, target_disp, target_count,
@@ -91,7 +107,7 @@ int E_Accumulate(const void *origin_addr, int origin_count,
 
 int E_Add_error_class(int *errorclass, int i, vector *v) {
     void *f_dl = NULL;
-    counter[2]++;
+    counters[2]++;
     QMPI_TABLE_QUERY(2, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 2, v, errorclass);
     return ret;
@@ -100,7 +116,7 @@ int E_Add_error_class(int *errorclass, int i, vector *v) {
 
 int E_Add_error_code(int errorclass, int *errorcode, int i, vector *v) {
     void *f_dl = NULL;
-    counter[3]++;
+    counters[3]++;
     QMPI_TABLE_QUERY(3, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 3, v, errorclass, errorcode);
     return ret;
@@ -109,7 +125,7 @@ int E_Add_error_code(int errorclass, int *errorcode, int i, vector *v) {
 
 int E_Add_error_string(int errorcode, const char *string, int i, vector *v) {
     void *f_dl = NULL;
-    counter[4]++;
+    counters[4]++;
     QMPI_TABLE_QUERY(4, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 4, v, errorcode, string);
     return ret;
@@ -118,7 +134,7 @@ int E_Add_error_string(int errorcode, const char *string, int i, vector *v) {
 
 int E_Address(void *location, MPI_Aint *address, int i, vector *v) {
     void *f_dl = NULL;
-    counter[5]++;
+    counters[5]++;
     QMPI_TABLE_QUERY(5, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 5, v, location, address);
     return ret;
@@ -129,7 +145,7 @@ int E_Allgather(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                 void *recvbuf, int recvcount, MPI_Datatype recvtype,
                 MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[6]++;
+    counters[6]++;
     QMPI_TABLE_QUERY(6, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 6, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm);
@@ -141,7 +157,7 @@ int E_Allgatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                  void *recvbuf, const int recvcounts[], const int displs[],
                  MPI_Datatype recvtype, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[7]++;
+    counters[7]++;
     QMPI_TABLE_QUERY(7, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 7, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcounts, displs, recvtype, comm);
@@ -151,7 +167,7 @@ int E_Allgatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
 
 int E_Alloc_mem(MPI_Aint size, MPI_Info info, void *baseptr, int i, vector *v) {
     void *f_dl = NULL;
-    counter[8]++;
+    counters[8]++;
     QMPI_TABLE_QUERY(8, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 8, v, size, info, baseptr);
     return ret;
@@ -162,7 +178,7 @@ int E_Allreduce(const void *sendbuf, void *recvbuf, int count,
                 MPI_Datatype datatype, MPI_Op op, MPI_Comm comm, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[9]++;
+    counters[9]++;
     QMPI_TABLE_QUERY(9, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 9, v, sendbuf, recvbuf, count, datatype, op, comm);
@@ -174,7 +190,7 @@ int E_Alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                void *recvbuf, int recvcount, MPI_Datatype recvtype,
                MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[10]++;
+    counters[10]++;
     QMPI_TABLE_QUERY(10, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 10, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm);
@@ -187,7 +203,7 @@ int E_Alltoallv(const void *sendbuf, const int sendcounts[],
                 const int recvcounts[], const int rdispls[],
                 MPI_Datatype recvtype, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[11]++;
+    counters[11]++;
     QMPI_TABLE_QUERY(11, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 11, v, sendbuf, sendcounts, sdispls, sendtype,
                         recvbuf, recvcounts, rdispls, recvtype, comm);
@@ -201,7 +217,7 @@ int E_Alltoallw(const void *sendbuf, const int sendcounts[],
                 const MPI_Datatype recvtypes[], MPI_Comm comm, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[12]++;
+    counters[12]++;
     QMPI_TABLE_QUERY(12, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 12, v, sendbuf, sendcounts, sdispls, sendtypes,
                         recvbuf, recvcounts, rdispls, recvtypes, comm);
@@ -211,7 +227,7 @@ int E_Alltoallw(const void *sendbuf, const int sendcounts[],
 
 int E_Attr_delete(MPI_Comm comm, int keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[13]++;
+    counters[13]++;
     QMPI_TABLE_QUERY(13, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 13, v, comm, keyval);
     return ret;
@@ -221,7 +237,7 @@ int E_Attr_delete(MPI_Comm comm, int keyval, int i, vector *v) {
 int E_Attr_get(MPI_Comm comm, int keyval, void *attribute_val, int *flag, int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[14]++;
+    counters[14]++;
     QMPI_TABLE_QUERY(14, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 14, v, comm, keyval, attribute_val, flag);
     return ret;
@@ -231,7 +247,7 @@ int E_Attr_get(MPI_Comm comm, int keyval, void *attribute_val, int *flag, int i,
 int E_Attr_put(MPI_Comm comm, int keyval, void *attribute_val, int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[15]++;
+    counters[15]++;
     QMPI_TABLE_QUERY(15, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 15, v, comm, keyval, attribute_val);
     return ret;
@@ -240,7 +256,7 @@ int E_Attr_put(MPI_Comm comm, int keyval, void *attribute_val, int i,
 
 int E_Barrier(MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[16]++;
+    counters[16]++;
     QMPI_TABLE_QUERY(16, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 16, v, comm);
     return ret;
@@ -250,7 +266,7 @@ int E_Barrier(MPI_Comm comm, int i, vector *v) {
 int E_Bcast(void *buffer, int count, MPI_Datatype datatype, int root,
             MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[17]++;
+    counters[17]++;
     QMPI_TABLE_QUERY(17, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 17, v, buffer, count, datatype, root, comm);
     return ret;
@@ -260,7 +276,7 @@ int E_Bcast(void *buffer, int count, MPI_Datatype datatype, int root,
 int E_Bsend(const void *buf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[18]++;
+    counters[18]++;
     QMPI_TABLE_QUERY(18, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 18, v, buf, count, datatype, dest, tag, comm);
     return ret;
@@ -271,7 +287,7 @@ int E_Bsend_init(const void *buf, int count, MPI_Datatype datatype, int dest,
                  int tag, MPI_Comm comm, MPI_Request *request, int i,
                  vector *v) {
     void *f_dl = NULL;
-    counter[19]++;
+    counters[19]++;
     QMPI_TABLE_QUERY(19, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 19, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -281,7 +297,7 @@ int E_Bsend_init(const void *buf, int count, MPI_Datatype datatype, int dest,
 
 int E_Buffer_attach(void *buffer, int size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[20]++;
+    counters[20]++;
     QMPI_TABLE_QUERY(20, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 20, v, buffer, size);
     return ret;
@@ -290,7 +306,7 @@ int E_Buffer_attach(void *buffer, int size, int i, vector *v) {
 
 int E_Buffer_detach(void *buffer, int *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[21]++;
+    counters[21]++;
     QMPI_TABLE_QUERY(21, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 21, v, buffer, size);
     return ret;
@@ -299,7 +315,7 @@ int E_Buffer_detach(void *buffer, int *size, int i, vector *v) {
 
 int E_Cancel(MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[22]++;
+    counters[22]++;
     QMPI_TABLE_QUERY(22, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 22, v, request);
     return ret;
@@ -309,7 +325,7 @@ int E_Cancel(MPI_Request *request, int i, vector *v) {
 int E_Cart_coords(MPI_Comm comm, int rank, int maxdims, int coords[], int i,
                   vector *v) {
     void *f_dl = NULL;
-    counter[23]++;
+    counters[23]++;
     QMPI_TABLE_QUERY(23, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 23, v, comm, rank, maxdims, coords);
     return ret;
@@ -320,7 +336,7 @@ int E_Cart_create(MPI_Comm old_comm, int ndims, const int dims[],
                   const int periods[], int reorder, MPI_Comm *comm_cart, int i,
                   vector *v) {
     void *f_dl = NULL;
-    counter[24]++;
+    counters[24]++;
     QMPI_TABLE_QUERY(24, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 24, v, old_comm, ndims, dims, periods, reorder,
                         comm_cart);
@@ -331,7 +347,7 @@ int E_Cart_create(MPI_Comm old_comm, int ndims, const int dims[],
 int E_Cart_get(MPI_Comm comm, int maxdims, int dims[], int periods[],
                int coords[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[25]++;
+    counters[25]++;
     QMPI_TABLE_QUERY(25, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 25, v, comm, maxdims, dims, periods, coords);
     return ret;
@@ -341,7 +357,7 @@ int E_Cart_get(MPI_Comm comm, int maxdims, int dims[], int periods[],
 int E_Cart_map(MPI_Comm comm, int ndims, const int dims[], const int periods[],
                int *newrank, int i, vector *v) {
     void *f_dl = NULL;
-    counter[26]++;
+    counters[26]++;
     QMPI_TABLE_QUERY(26, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 26, v, comm, ndims, dims, periods, newrank);
     return ret;
@@ -351,7 +367,7 @@ int E_Cart_map(MPI_Comm comm, int ndims, const int dims[], const int periods[],
 int E_Cart_rank(MPI_Comm comm, const int coords[], int *rank, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[27]++;
+    counters[27]++;
     QMPI_TABLE_QUERY(27, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 27, v, comm, coords, rank);
     return ret;
@@ -361,7 +377,7 @@ int E_Cart_rank(MPI_Comm comm, const int coords[], int *rank, int i,
 int E_Cart_shift(MPI_Comm comm, int direction, int disp, int *rank_source,
                  int *rank_dest, int i, vector *v) {
     void *f_dl = NULL;
-    counter[28]++;
+    counters[28]++;
     QMPI_TABLE_QUERY(28, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 28, v, comm, direction, disp, rank_source,
                         rank_dest);
@@ -372,7 +388,7 @@ int E_Cart_shift(MPI_Comm comm, int direction, int disp, int *rank_source,
 int E_Cart_sub(MPI_Comm comm, const int remain_dims[], MPI_Comm *new_comm,
                int i, vector *v) {
     void *f_dl = NULL;
-    counter[29]++;
+    counters[29]++;
     QMPI_TABLE_QUERY(29, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 29, v, comm, remain_dims, new_comm);
     return ret;
@@ -382,7 +398,7 @@ int E_Cart_sub(MPI_Comm comm, const int remain_dims[], MPI_Comm *new_comm,
 
 int E_Cartdim_get(MPI_Comm comm, int *ndims, int i, vector *v) {
     void *f_dl = NULL;
-    counter[30]++;
+    counters[30]++;
     QMPI_TABLE_QUERY(30, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 30, v, comm, ndims);
     return ret;
@@ -391,7 +407,7 @@ int E_Cartdim_get(MPI_Comm comm, int *ndims, int i, vector *v) {
 
 int E_Close_port(const char *port_name, int i, vector *v) {
     void *f_dl = NULL;
-    counter[31]++;
+    counters[31]++;
     QMPI_TABLE_QUERY(31, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 31, v, port_name);
     return ret;
@@ -401,7 +417,7 @@ int E_Close_port(const char *port_name, int i, vector *v) {
 int E_Comm_accept(const char *port_name, MPI_Info info, int root, MPI_Comm comm,
                   MPI_Comm *newcomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[32]++;
+    counters[32]++;
     QMPI_TABLE_QUERY(32, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 32, v, port_name, info, root, comm, newcomm);
     return ret;
@@ -411,7 +427,7 @@ int E_Comm_accept(const char *port_name, MPI_Info info, int root, MPI_Comm comm,
 
 int E_Comm_call_errhandler(MPI_Comm comm, int errorcode, int i, vector *v) {
     void *f_dl = NULL;
-    counter[33]++;
+    counters[33]++;
     QMPI_TABLE_QUERY(33, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 33, v, comm, errorcode);
     return ret;
@@ -421,7 +437,7 @@ int E_Comm_call_errhandler(MPI_Comm comm, int errorcode, int i, vector *v) {
 int E_Comm_compare(MPI_Comm comm1, MPI_Comm comm2, int *result, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[34]++;
+    counters[34]++;
     QMPI_TABLE_QUERY(34, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 34, v, comm1, comm2, result);
     return ret;
@@ -431,7 +447,7 @@ int E_Comm_compare(MPI_Comm comm1, MPI_Comm comm2, int *result, int i,
 int E_Comm_connect(const char *port_name, MPI_Info info, int root,
                    MPI_Comm comm, MPI_Comm *newcomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[35]++;
+    counters[35]++;
     QMPI_TABLE_QUERY(35, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 35, v, port_name, info, root, comm, newcomm);
     return ret;
@@ -441,7 +457,7 @@ int E_Comm_connect(const char *port_name, MPI_Info info, int root,
 int E_Comm_create(MPI_Comm comm, MPI_Group group, MPI_Comm *newcomm, int i,
                   vector *v) {
     void *f_dl = NULL;
-    counter[36]++;
+    counters[36]++;
     QMPI_TABLE_QUERY(36, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 36, v, comm, group, newcomm);
     return ret;
@@ -452,7 +468,7 @@ int E_Comm_create(MPI_Comm comm, MPI_Group group, MPI_Comm *newcomm, int i,
 int E_Comm_create_errhandler(MPI_Comm_errhandler_function *function,
                              MPI_Errhandler *errhandler, int i, vector *v) {
     void *f_dl = NULL;
-    counter[37]++;
+    counters[37]++;
     QMPI_TABLE_QUERY(37, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 37, v, function, errhandler);
     return ret;
@@ -463,7 +479,7 @@ int E_Comm_create_errhandler(MPI_Comm_errhandler_function *function,
 int E_Comm_create_group(MPI_Comm comm, MPI_Group group, int tag,
                         MPI_Comm *newcomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[38]++;
+    counters[38]++;
     QMPI_TABLE_QUERY(38, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 38, v, comm, group, tag, newcomm);
     return ret;
@@ -476,7 +492,7 @@ int E_Comm_create_keyval(MPI_Comm_copy_attr_function *comm_copy_attr_fn,
                          int *comm_keyval, void *extra_state, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[39]++;
+    counters[39]++;
     QMPI_TABLE_QUERY(39, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 39, v, comm_copy_attr_fn, comm_delete_attr_fn,
                         comm_keyval, extra_state);
@@ -487,7 +503,7 @@ int E_Comm_create_keyval(MPI_Comm_copy_attr_function *comm_copy_attr_fn,
 
 int E_Comm_delete_attr(MPI_Comm comm, int comm_keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[40]++;
+    counters[40]++;
     QMPI_TABLE_QUERY(40, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 40, v, comm, comm_keyval);
     return ret;
@@ -496,7 +512,7 @@ int E_Comm_delete_attr(MPI_Comm comm, int comm_keyval, int i, vector *v) {
 
 int E_Comm_disconnect(MPI_Comm *comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[41]++;
+    counters[41]++;
     QMPI_TABLE_QUERY(41, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 41, v, comm);
     return ret;
@@ -505,7 +521,7 @@ int E_Comm_disconnect(MPI_Comm *comm, int i, vector *v) {
 
 int E_Comm_dup(MPI_Comm comm, MPI_Comm *newcomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[42]++;
+    counters[42]++;
     QMPI_TABLE_QUERY(42, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 42, v, comm, newcomm);
     return ret;
@@ -516,7 +532,7 @@ int E_Comm_dup(MPI_Comm comm, MPI_Comm *newcomm, int i, vector *v) {
 int E_Comm_dup_with_info(MPI_Comm comm, MPI_Info info, MPI_Comm *newcomm, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[43]++;
+    counters[43]++;
     QMPI_TABLE_QUERY(43, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 43, v, comm, info, newcomm);
     return ret;
@@ -525,7 +541,7 @@ int E_Comm_dup_with_info(MPI_Comm comm, MPI_Info info, MPI_Comm *newcomm, int i,
 
 int E_Comm_free(MPI_Comm *comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[44]++;
+    counters[44]++;
     QMPI_TABLE_QUERY(44, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 44, v, comm);
     return ret;
@@ -535,7 +551,7 @@ int E_Comm_free(MPI_Comm *comm, int i, vector *v) {
 
 int E_Comm_free_keyval(int *comm_keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[45]++;
+    counters[45]++;
     QMPI_TABLE_QUERY(45, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 45, v, comm_keyval);
     return ret;
@@ -545,7 +561,7 @@ int E_Comm_free_keyval(int *comm_keyval, int i, vector *v) {
 int E_Comm_get_attr(MPI_Comm comm, int comm_keyval, void *attribute_val,
                     int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[46]++;
+    counters[46]++;
     QMPI_TABLE_QUERY(46, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 46, v, comm, comm_keyval, attribute_val, flag);
     return ret;
@@ -556,7 +572,7 @@ int E_Comm_get_attr(MPI_Comm comm, int comm_keyval, void *attribute_val,
 int E_Comm_get_errhandler(MPI_Comm comm, MPI_Errhandler *erhandler, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[47]++;
+    counters[47]++;
     QMPI_TABLE_QUERY(47, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 47, v, comm, erhandler);
     return ret;
@@ -565,7 +581,7 @@ int E_Comm_get_errhandler(MPI_Comm comm, MPI_Errhandler *erhandler, int i,
 
 int E_Comm_get_info(MPI_Comm comm, MPI_Info *info_used, int i, vector *v) {
     void *f_dl = NULL;
-    counter[48]++;
+    counters[48]++;
     QMPI_TABLE_QUERY(48, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 48, v, comm, info_used);
     return ret;
@@ -575,7 +591,7 @@ int E_Comm_get_info(MPI_Comm comm, MPI_Info *info_used, int i, vector *v) {
 int E_Comm_get_name(MPI_Comm comm, char *comm_name, int *resultlen, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[49]++;
+    counters[49]++;
     QMPI_TABLE_QUERY(49, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 49, v, comm, comm_name, resultlen);
     return ret;
@@ -584,7 +600,7 @@ int E_Comm_get_name(MPI_Comm comm, char *comm_name, int *resultlen, int i,
 
 int E_Comm_get_parent(MPI_Comm *parent, int i, vector *v) {
     void *f_dl = NULL;
-    counter[50]++;
+    counters[50]++;
     QMPI_TABLE_QUERY(50, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 50, v, parent);
     return ret;
@@ -593,7 +609,7 @@ int E_Comm_get_parent(MPI_Comm *parent, int i, vector *v) {
 
 int E_Comm_group(MPI_Comm comm, MPI_Group *group, int i, vector *v) {
     void *f_dl = NULL;
-    counter[51]++;
+    counters[51]++;
     QMPI_TABLE_QUERY(51, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 51, v, comm, group);
     return ret;
@@ -603,7 +619,7 @@ int E_Comm_group(MPI_Comm comm, MPI_Group *group, int i, vector *v) {
 int E_Comm_idup(MPI_Comm comm, MPI_Comm *newcomm, MPI_Request *request, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[52]++;
+    counters[52]++;
     QMPI_TABLE_QUERY(52, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 52, v, comm, newcomm, request);
     return ret;
@@ -612,7 +628,7 @@ int E_Comm_idup(MPI_Comm comm, MPI_Comm *newcomm, MPI_Request *request, int i,
 
 int E_Comm_join(int fd, MPI_Comm *intercomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[53]++;
+    counters[53]++;
     QMPI_TABLE_QUERY(53, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 53, v, fd, intercomm);
     return ret;
@@ -621,7 +637,7 @@ int E_Comm_join(int fd, MPI_Comm *intercomm, int i, vector *v) {
 
 int E_Comm_rank(MPI_Comm comm, int *rank, int i, vector *v) {
     void *f_dl = NULL;
-    counter[54]++;
+    counters[54]++;
     QMPI_TABLE_QUERY(54, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 54, v, comm, rank);
     return ret;
@@ -631,7 +647,7 @@ int E_Comm_rank(MPI_Comm comm, int *rank, int i, vector *v) {
 
 int E_Comm_remote_group(MPI_Comm comm, MPI_Group *group, int i, vector *v) {
     void *f_dl = NULL;
-    counter[55]++;
+    counters[55]++;
     QMPI_TABLE_QUERY(55, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 55, v, comm, group);
     return ret;
@@ -641,7 +657,7 @@ int E_Comm_remote_group(MPI_Comm comm, MPI_Group *group, int i, vector *v) {
 
 int E_Comm_remote_size(MPI_Comm comm, int *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[56]++;
+    counters[56]++;
     QMPI_TABLE_QUERY(56, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 56, v, comm, size);
     return ret;
@@ -651,7 +667,7 @@ int E_Comm_remote_size(MPI_Comm comm, int *size, int i, vector *v) {
 int E_Comm_set_attr(MPI_Comm comm, int comm_keyval, void *attribute_val, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[57]++;
+    counters[57]++;
     QMPI_TABLE_QUERY(57, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 57, v, comm, comm_keyval, attribute_val);
     return ret;
@@ -662,7 +678,7 @@ int E_Comm_set_attr(MPI_Comm comm, int comm_keyval, void *attribute_val, int i,
 int E_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[58]++;
+    counters[58]++;
     QMPI_TABLE_QUERY(58, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 58, v, comm, errhandler);
     return ret;
@@ -671,7 +687,7 @@ int E_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler, int i,
 
 int E_Comm_set_info(MPI_Comm comm, MPI_Info info, int i, vector *v) {
     void *f_dl = NULL;
-    counter[59]++;
+    counters[59]++;
     QMPI_TABLE_QUERY(59, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 59, v, comm, info);
     return ret;
@@ -680,7 +696,7 @@ int E_Comm_set_info(MPI_Comm comm, MPI_Info info, int i, vector *v) {
 
 int E_Comm_set_name(MPI_Comm comm, const char *comm_name, int i, vector *v) {
     void *f_dl = NULL;
-    counter[60]++;
+    counters[60]++;
     QMPI_TABLE_QUERY(60, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 60, v, comm, comm_name);
     return ret;
@@ -689,7 +705,7 @@ int E_Comm_set_name(MPI_Comm comm, const char *comm_name, int i, vector *v) {
 
 int E_Comm_size(MPI_Comm comm, int *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[61]++;
+    counters[61]++;
     QMPI_TABLE_QUERY(61, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 61, v, comm, size);
     return ret;
@@ -699,7 +715,7 @@ int E_Comm_size(MPI_Comm comm, int *size, int i, vector *v) {
 int E_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm, int i,
                  vector *v) {
     void *f_dl = NULL;
-    counter[62]++;
+    counters[62]++;
     QMPI_TABLE_QUERY(62, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 62, v, comm, color, key, newcomm);
     return ret;
@@ -709,7 +725,7 @@ int E_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm, int i,
 int E_Comm_split_type(MPI_Comm comm, int split_type, int key, MPI_Info info,
                       MPI_Comm *newcomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[63]++;
+    counters[63]++;
     QMPI_TABLE_QUERY(63, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 63, v, comm, split_type, key, info, newcomm);
     return ret;
@@ -718,7 +734,7 @@ int E_Comm_split_type(MPI_Comm comm, int split_type, int key, MPI_Info info,
 
 int E_Comm_test_inter(MPI_Comm comm, int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[64]++;
+    counters[64]++;
     QMPI_TABLE_QUERY(64, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 64, v, comm, flag);
     return ret;
@@ -730,7 +746,7 @@ int E_Compare_and_swap(const void *origin_addr, const void *compare_addr,
                        int target_rank, MPI_Aint target_disp, MPI_Win win,
                        int i, vector *v) {
     void *f_dl = NULL;
-    counter[65]++;
+    counters[65]++;
     QMPI_TABLE_QUERY(65, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 65, v, origin_addr, compare_addr, result_addr,
                         datatype, target_rank, target_disp, win);
@@ -740,7 +756,7 @@ int E_Compare_and_swap(const void *origin_addr, const void *compare_addr,
 
 int E_Dims_create(int nnodes, int ndims, int dims[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[66]++;
+    counters[66]++;
     QMPI_TABLE_QUERY(66, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 66, v, nnodes, ndims, dims);
     return ret;
@@ -752,7 +768,7 @@ int E_Dist_graph_create(MPI_Comm comm_old, int n, const int nodes[],
                         const int weights[], MPI_Info info, int reorder,
                         MPI_Comm *newcomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[67]++;
+    counters[67]++;
     QMPI_TABLE_QUERY(67, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 67, v, comm_old, n, nodes, degrees, targets,
                         weights, info, reorder, newcomm);
@@ -768,7 +784,7 @@ int E_Dist_graph_create_adjacent(MPI_Comm comm_old, int indegree,
                                  int reorder, MPI_Comm *comm_dist_graph, int i,
                                  vector *v) {
     void *f_dl = NULL;
-    counter[68]++;
+    counters[68]++;
     QMPI_TABLE_QUERY(68, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 68, v, comm_old, indegree, sources,
                         sourceweights, outdegree, destinations, destweights,
@@ -783,7 +799,7 @@ int E_Dist_graph_neighbors(MPI_Comm comm, int maxindegree, int sources[],
                            int destinations[], int destweights[], int i,
                            vector *v) {
     void *f_dl = NULL;
-    counter[69]++;
+    counters[69]++;
     QMPI_TABLE_QUERY(69, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 69, v, comm, maxindegree, sources,
                         sourceweights, maxoutdegree, destinations, destweights);
@@ -796,7 +812,7 @@ int E_Dist_graph_neighbors_count(MPI_Comm comm, int *inneighbors,
                                  int *outneighbors, int *weighted, int i,
                                  vector *v) {
     void *f_dl = NULL;
-    counter[70]++;
+    counters[70]++;
     QMPI_TABLE_QUERY(70, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 70, v, comm, inneighbors, outneighbors, weighted);
@@ -807,7 +823,7 @@ int E_Dist_graph_neighbors_count(MPI_Comm comm, int *inneighbors,
 int E_Errhandler_create(MPI_Handler_function *function,
                         MPI_Errhandler *errhandler, int i, vector *v) {
     void *f_dl = NULL;
-    counter[71]++;
+    counters[71]++;
     QMPI_TABLE_QUERY(71, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 71, v, function, errhandler);
     return ret;
@@ -816,7 +832,7 @@ int E_Errhandler_create(MPI_Handler_function *function,
 
 int E_Errhandler_free(MPI_Errhandler *errhandler, int i, vector *v) {
     void *f_dl = NULL;
-    counter[72]++;
+    counters[72]++;
     QMPI_TABLE_QUERY(72, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 72, v, errhandler);
     return ret;
@@ -826,7 +842,7 @@ int E_Errhandler_free(MPI_Errhandler *errhandler, int i, vector *v) {
 int E_Errhandler_get(MPI_Comm comm, MPI_Errhandler *errhandler, int i,
                      vector *v) {
     void *f_dl = NULL;
-    counter[73]++;
+    counters[73]++;
     QMPI_TABLE_QUERY(73, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 73, v, comm, errhandler);
     return ret;
@@ -836,7 +852,7 @@ int E_Errhandler_get(MPI_Comm comm, MPI_Errhandler *errhandler, int i,
 int E_Errhandler_set(MPI_Comm comm, MPI_Errhandler errhandler, int i,
                      vector *v) {
     void *f_dl = NULL;
-    counter[74]++;
+    counters[74]++;
     QMPI_TABLE_QUERY(74, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 74, v, comm, errhandler);
     return ret;
@@ -845,7 +861,7 @@ int E_Errhandler_set(MPI_Comm comm, MPI_Errhandler errhandler, int i,
 
 int E_Error_class(int errorcode, int *errorclass, int i, vector *v) {
     void *f_dl = NULL;
-    counter[75]++;
+    counters[75]++;
     QMPI_TABLE_QUERY(75, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 75, v, errorcode, errorclass);
     return ret;
@@ -855,7 +871,7 @@ int E_Error_class(int errorcode, int *errorclass, int i, vector *v) {
 int E_Error_string(int errorcode, char *string, int *resultlen, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[76]++;
+    counters[76]++;
     QMPI_TABLE_QUERY(76, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 76, v, errorcode, string, resultlen);
     return ret;
@@ -866,7 +882,7 @@ int E_Exscan(const void *sendbuf, void *recvbuf, int count,
              MPI_Datatype datatype, MPI_Op op, MPI_Comm comm, int i,
              vector *v) {
     void *f_dl = NULL;
-    counter[77]++;
+    counters[77]++;
     QMPI_TABLE_QUERY(77, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 77, v, sendbuf, recvbuf, count, datatype, op, comm);
@@ -878,7 +894,7 @@ int E_Fetch_and_op(const void *origin_addr, void *result_addr,
                    MPI_Datatype datatype, int target_rank, MPI_Aint target_disp,
                    MPI_Op op, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[78]++;
+    counters[78]++;
     QMPI_TABLE_QUERY(78, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 78, v, origin_addr, result_addr, datatype,
                         target_rank, target_disp, op, win);
@@ -889,7 +905,7 @@ int E_Fetch_and_op(const void *origin_addr, void *result_addr,
 
 int E_File_call_errhandler(MPI_File fh, int errorcode, int i, vector *v) {
     void *f_dl = NULL;
-    counter[79]++;
+    counters[79]++;
     QMPI_TABLE_QUERY(79, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 79, v, fh, errorcode);
     return ret;
@@ -898,7 +914,7 @@ int E_File_call_errhandler(MPI_File fh, int errorcode, int i, vector *v) {
 
 int E_File_close(MPI_File *fh, int i, vector *v) {
     void *f_dl = NULL;
-    counter[80]++;
+    counters[80]++;
     QMPI_TABLE_QUERY(80, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 80, v, fh);
     return ret;
@@ -909,7 +925,7 @@ int E_File_close(MPI_File *fh, int i, vector *v) {
 int E_File_create_errhandler(MPI_File_errhandler_function *function,
                              MPI_Errhandler *errhandler, int i, vector *v) {
     void *f_dl = NULL;
-    counter[81]++;
+    counters[81]++;
     QMPI_TABLE_QUERY(81, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 81, v, function, errhandler);
     return ret;
@@ -918,7 +934,7 @@ int E_File_create_errhandler(MPI_File_errhandler_function *function,
 
 int E_File_delete(const char *filename, MPI_Info info, int i, vector *v) {
     void *f_dl = NULL;
-    counter[82]++;
+    counters[82]++;
     QMPI_TABLE_QUERY(82, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 82, v, filename, info);
     return ret;
@@ -927,7 +943,7 @@ int E_File_delete(const char *filename, MPI_Info info, int i, vector *v) {
 
 int E_File_get_amode(MPI_File fh, int *amode, int i, vector *v) {
     void *f_dl = NULL;
-    counter[83]++;
+    counters[83]++;
     QMPI_TABLE_QUERY(83, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 83, v, fh, amode);
     return ret;
@@ -937,7 +953,7 @@ int E_File_get_amode(MPI_File fh, int *amode, int i, vector *v) {
 
 int E_File_get_atomicity(MPI_File fh, int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[84]++;
+    counters[84]++;
     QMPI_TABLE_QUERY(84, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 84, v, fh, flag);
     return ret;
@@ -948,7 +964,7 @@ int E_File_get_atomicity(MPI_File fh, int *flag, int i, vector *v) {
 int E_File_get_byte_offset(MPI_File fh, MPI_Offset offset, MPI_Offset *disp,
                            int i, vector *v) {
     void *f_dl = NULL;
-    counter[85]++;
+    counters[85]++;
     QMPI_TABLE_QUERY(85, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 85, v, fh, offset, disp);
     return ret;
@@ -959,7 +975,7 @@ int E_File_get_byte_offset(MPI_File fh, MPI_Offset offset, MPI_Offset *disp,
 int E_File_get_errhandler(MPI_File file, MPI_Errhandler *errhandler, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[86]++;
+    counters[86]++;
     QMPI_TABLE_QUERY(86, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 86, v, file, errhandler);
     return ret;
@@ -968,7 +984,7 @@ int E_File_get_errhandler(MPI_File file, MPI_Errhandler *errhandler, int i,
 
 int E_File_get_group(MPI_File fh, MPI_Group *group, int i, vector *v) {
     void *f_dl = NULL;
-    counter[87]++;
+    counters[87]++;
     QMPI_TABLE_QUERY(87, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 87, v, fh, group);
     return ret;
@@ -977,7 +993,7 @@ int E_File_get_group(MPI_File fh, MPI_Group *group, int i, vector *v) {
 
 int E_File_get_info(MPI_File fh, MPI_Info *info_used, int i, vector *v) {
     void *f_dl = NULL;
-    counter[88]++;
+    counters[88]++;
     QMPI_TABLE_QUERY(88, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 88, v, fh, info_used);
     return ret;
@@ -986,7 +1002,7 @@ int E_File_get_info(MPI_File fh, MPI_Info *info_used, int i, vector *v) {
 
 int E_File_get_position(MPI_File fh, MPI_Offset *offset, int i, vector *v) {
     void *f_dl = NULL;
-    counter[89]++;
+    counters[89]++;
     QMPI_TABLE_QUERY(89, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 89, v, fh, offset);
     return ret;
@@ -997,7 +1013,7 @@ int E_File_get_position(MPI_File fh, MPI_Offset *offset, int i, vector *v) {
 int E_File_get_position_shared(MPI_File fh, MPI_Offset *offset, int i,
                                vector *v) {
     void *f_dl = NULL;
-    counter[90]++;
+    counters[90]++;
     QMPI_TABLE_QUERY(90, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 90, v, fh, offset);
     return ret;
@@ -1006,7 +1022,7 @@ int E_File_get_position_shared(MPI_File fh, MPI_Offset *offset, int i,
 
 int E_File_get_size(MPI_File fh, MPI_Offset *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[91]++;
+    counters[91]++;
     QMPI_TABLE_QUERY(91, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 91, v, fh, size);
     return ret;
@@ -1017,7 +1033,7 @@ int E_File_get_size(MPI_File fh, MPI_Offset *size, int i, vector *v) {
 int E_File_get_type_extent(MPI_File fh, MPI_Datatype datatype, MPI_Aint *extent,
                            int i, vector *v) {
     void *f_dl = NULL;
-    counter[92]++;
+    counters[92]++;
     QMPI_TABLE_QUERY(92, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 92, v, fh, datatype, extent);
     return ret;
@@ -1027,7 +1043,7 @@ int E_File_get_type_extent(MPI_File fh, MPI_Datatype datatype, MPI_Aint *extent,
 int E_File_get_view(MPI_File fh, MPI_Offset *disp, MPI_Datatype *etype,
                     MPI_Datatype *filetype, char *datarep, int i, vector *v) {
     void *f_dl = NULL;
-    counter[93]++;
+    counters[93]++;
     QMPI_TABLE_QUERY(93, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 93, v, fh, disp, etype, filetype, datarep);
     return ret;
@@ -1037,7 +1053,7 @@ int E_File_get_view(MPI_File fh, MPI_Offset *disp, MPI_Datatype *etype,
 int E_File_iread(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
                  MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[94]++;
+    counters[94]++;
     QMPI_TABLE_QUERY(94, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 94, v, fh, buf, count, datatype, request);
     return ret;
@@ -1047,7 +1063,7 @@ int E_File_iread(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
 int E_File_iread_all(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
                      MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[95]++;
+    counters[95]++;
     QMPI_TABLE_QUERY(95, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 95, v, fh, buf, count, datatype, request);
     return ret;
@@ -1059,7 +1075,7 @@ int E_File_iread_at(MPI_File fh, MPI_Offset offset, void *buf, int count,
                     MPI_Datatype datatype, MPI_Request *request, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[96]++;
+    counters[96]++;
     QMPI_TABLE_QUERY(96, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 96, v, fh, offset, buf, count, datatype, request);
@@ -1071,7 +1087,7 @@ int E_File_iread_at_all(MPI_File fh, MPI_Offset offset, void *buf, int count,
                         MPI_Datatype datatype, MPI_Request *request, int i,
                         vector *v) {
     void *f_dl = NULL;
-    counter[97]++;
+    counters[97]++;
     QMPI_TABLE_QUERY(97, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 97, v, fh, offset, buf, count, datatype, request);
@@ -1083,7 +1099,7 @@ int E_File_iread_shared(MPI_File fh, void *buf, int count,
                         MPI_Datatype datatype, MPI_Request *request, int i,
                         vector *v) {
     void *f_dl = NULL;
-    counter[98]++;
+    counters[98]++;
     QMPI_TABLE_QUERY(98, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 98, v, fh, buf, count, datatype, request);
     return ret;
@@ -1094,7 +1110,7 @@ int E_File_iwrite(MPI_File fh, const void *buf, int count,
                   MPI_Datatype datatype, MPI_Request *request, int i,
                   vector *v) {
     void *f_dl = NULL;
-    counter[99]++;
+    counters[99]++;
     QMPI_TABLE_QUERY(99, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 99, v, fh, buf, count, datatype, request);
     return ret;
@@ -1105,7 +1121,7 @@ int E_File_iwrite_all(MPI_File fh, const void *buf, int count,
                       MPI_Datatype datatype, MPI_Request *request, int i,
                       vector *v) {
     void *f_dl = NULL;
-    counter[100]++;
+    counters[100]++;
     QMPI_TABLE_QUERY(100, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 100, v, fh, buf, count, datatype, request);
     return ret;
@@ -1116,7 +1132,7 @@ int E_File_iwrite_at(MPI_File fh, MPI_Offset offset, const void *buf, int count,
                      MPI_Datatype datatype, MPI_Request *request, int i,
                      vector *v) {
     void *f_dl = NULL;
-    counter[101]++;
+    counters[101]++;
     QMPI_TABLE_QUERY(101, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 101, v, fh, offset, buf, count, datatype, request);
@@ -1129,7 +1145,7 @@ int E_File_iwrite_at_all(MPI_File fh, MPI_Offset offset, const void *buf,
                          int count, MPI_Datatype datatype, MPI_Request *request,
                          int i, vector *v) {
     void *f_dl = NULL;
-    counter[102]++;
+    counters[102]++;
     QMPI_TABLE_QUERY(102, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 102, v, fh, offset, buf, count, datatype, request);
@@ -1142,7 +1158,7 @@ int E_File_iwrite_shared(MPI_File fh, const void *buf, int count,
                          MPI_Datatype datatype, MPI_Request *request, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[103]++;
+    counters[103]++;
     QMPI_TABLE_QUERY(103, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 103, v, fh, buf, count, datatype, request);
     return ret;
@@ -1152,7 +1168,7 @@ int E_File_iwrite_shared(MPI_File fh, const void *buf, int count,
 int E_File_open(MPI_Comm comm, const char *filename, int amode, MPI_Info info,
                 MPI_File *fh, int i, vector *v) {
     void *f_dl = NULL;
-    counter[104]++;
+    counters[104]++;
     QMPI_TABLE_QUERY(104, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 104, v, comm, filename, amode, info, fh);
     return ret;
@@ -1161,7 +1177,7 @@ int E_File_open(MPI_Comm comm, const char *filename, int amode, MPI_Info info,
 
 int E_File_preallocate(MPI_File fh, MPI_Offset size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[105]++;
+    counters[105]++;
     QMPI_TABLE_QUERY(105, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 105, v, fh, size);
     return ret;
@@ -1171,7 +1187,7 @@ int E_File_preallocate(MPI_File fh, MPI_Offset size, int i, vector *v) {
 int E_File_read(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
                 MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[106]++;
+    counters[106]++;
     QMPI_TABLE_QUERY(106, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 106, v, fh, buf, count, datatype, status);
     return ret;
@@ -1181,7 +1197,7 @@ int E_File_read(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
 int E_File_read_all(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
                     MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[107]++;
+    counters[107]++;
     QMPI_TABLE_QUERY(107, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 107, v, fh, buf, count, datatype, status);
     return ret;
@@ -1192,7 +1208,7 @@ int E_File_read_all(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
 int E_File_read_all_begin(MPI_File fh, void *buf, int count,
                           MPI_Datatype datatype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[108]++;
+    counters[108]++;
     QMPI_TABLE_QUERY(108, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 108, v, fh, buf, count, datatype);
     return ret;
@@ -1202,7 +1218,7 @@ int E_File_read_all_begin(MPI_File fh, void *buf, int count,
 int E_File_read_all_end(MPI_File fh, void *buf, MPI_Status *status, int i,
                         vector *v) {
     void *f_dl = NULL;
-    counter[109]++;
+    counters[109]++;
     QMPI_TABLE_QUERY(109, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 109, v, fh, buf, status);
     return ret;
@@ -1213,7 +1229,7 @@ int E_File_read_at(MPI_File fh, MPI_Offset offset, void *buf, int count,
                    MPI_Datatype datatype, MPI_Status *status, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[110]++;
+    counters[110]++;
     QMPI_TABLE_QUERY(110, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 110, v, fh, offset, buf, count, datatype, status);
@@ -1225,7 +1241,7 @@ int E_File_read_at_all(MPI_File fh, MPI_Offset offset, void *buf, int count,
                        MPI_Datatype datatype, MPI_Status *status, int i,
                        vector *v) {
     void *f_dl = NULL;
-    counter[111]++;
+    counters[111]++;
     QMPI_TABLE_QUERY(111, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 111, v, fh, offset, buf, count, datatype, status);
@@ -1238,7 +1254,7 @@ int E_File_read_at_all_begin(MPI_File fh, MPI_Offset offset, void *buf,
                              int count, MPI_Datatype datatype, int i,
                              vector *v) {
     void *f_dl = NULL;
-    counter[112]++;
+    counters[112]++;
     QMPI_TABLE_QUERY(112, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 112, v, fh, offset, buf, count, datatype);
     return ret;
@@ -1249,7 +1265,7 @@ int E_File_read_at_all_begin(MPI_File fh, MPI_Offset offset, void *buf,
 int E_File_read_at_all_end(MPI_File fh, void *buf, MPI_Status *status, int i,
                            vector *v) {
     void *f_dl = NULL;
-    counter[113]++;
+    counters[113]++;
     QMPI_TABLE_QUERY(113, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 113, v, fh, buf, status);
     return ret;
@@ -1260,7 +1276,7 @@ int E_File_read_ordered(MPI_File fh, void *buf, int count,
                         MPI_Datatype datatype, MPI_Status *status, int i,
                         vector *v) {
     void *f_dl = NULL;
-    counter[114]++;
+    counters[114]++;
     QMPI_TABLE_QUERY(114, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 114, v, fh, buf, count, datatype, status);
     return ret;
@@ -1271,7 +1287,7 @@ int E_File_read_ordered(MPI_File fh, void *buf, int count,
 int E_File_read_ordered_begin(MPI_File fh, void *buf, int count,
                               MPI_Datatype datatype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[115]++;
+    counters[115]++;
     QMPI_TABLE_QUERY(115, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 115, v, fh, buf, count, datatype);
     return ret;
@@ -1282,7 +1298,7 @@ int E_File_read_ordered_begin(MPI_File fh, void *buf, int count,
 int E_File_read_ordered_end(MPI_File fh, void *buf, MPI_Status *status, int i,
                             vector *v) {
     void *f_dl = NULL;
-    counter[116]++;
+    counters[116]++;
     QMPI_TABLE_QUERY(116, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 116, v, fh, buf, status);
     return ret;
@@ -1292,7 +1308,7 @@ int E_File_read_ordered_end(MPI_File fh, void *buf, MPI_Status *status, int i,
 int E_File_read_shared(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
                        MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[117]++;
+    counters[117]++;
     QMPI_TABLE_QUERY(117, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 117, v, fh, buf, count, datatype, status);
     return ret;
@@ -1301,7 +1317,7 @@ int E_File_read_shared(MPI_File fh, void *buf, int count, MPI_Datatype datatype,
 
 int E_File_seek(MPI_File fh, MPI_Offset offset, int whence, int i, vector *v) {
     void *f_dl = NULL;
-    counter[118]++;
+    counters[118]++;
     QMPI_TABLE_QUERY(118, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 118, v, fh, offset, whence);
     return ret;
@@ -1311,7 +1327,7 @@ int E_File_seek(MPI_File fh, MPI_Offset offset, int whence, int i, vector *v) {
 int E_File_seek_shared(MPI_File fh, MPI_Offset offset, int whence, int i,
                        vector *v) {
     void *f_dl = NULL;
-    counter[119]++;
+    counters[119]++;
     QMPI_TABLE_QUERY(119, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 119, v, fh, offset, whence);
     return ret;
@@ -1321,7 +1337,7 @@ int E_File_seek_shared(MPI_File fh, MPI_Offset offset, int whence, int i,
 
 int E_File_set_atomicity(MPI_File fh, int flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[120]++;
+    counters[120]++;
     QMPI_TABLE_QUERY(120, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 120, v, fh, flag);
     return ret;
@@ -1332,7 +1348,7 @@ int E_File_set_atomicity(MPI_File fh, int flag, int i, vector *v) {
 int E_File_set_errhandler(MPI_File file, MPI_Errhandler errhandler, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[121]++;
+    counters[121]++;
     QMPI_TABLE_QUERY(121, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 121, v, file, errhandler);
     return ret;
@@ -1341,7 +1357,7 @@ int E_File_set_errhandler(MPI_File file, MPI_Errhandler errhandler, int i,
 
 int E_File_set_info(MPI_File fh, MPI_Info info, int i, vector *v) {
     void *f_dl = NULL;
-    counter[122]++;
+    counters[122]++;
     QMPI_TABLE_QUERY(122, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 122, v, fh, info);
     return ret;
@@ -1350,7 +1366,7 @@ int E_File_set_info(MPI_File fh, MPI_Info info, int i, vector *v) {
 
 int E_File_set_size(MPI_File fh, MPI_Offset size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[123]++;
+    counters[123]++;
     QMPI_TABLE_QUERY(123, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 123, v, fh, size);
     return ret;
@@ -1361,7 +1377,7 @@ int E_File_set_view(MPI_File fh, MPI_Offset disp, MPI_Datatype etype,
                     MPI_Datatype filetype, const char *datarep, MPI_Info info,
                     int i, vector *v) {
     void *f_dl = NULL;
-    counter[124]++;
+    counters[124]++;
     QMPI_TABLE_QUERY(124, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 124, v, fh, disp, etype, filetype, datarep, info);
@@ -1371,7 +1387,7 @@ int E_File_set_view(MPI_File fh, MPI_Offset disp, MPI_Datatype etype,
 
 int E_File_sync(MPI_File fh, int i, vector *v) {
     void *f_dl = NULL;
-    counter[125]++;
+    counters[125]++;
     QMPI_TABLE_QUERY(125, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 125, v, fh);
     return ret;
@@ -1381,7 +1397,7 @@ int E_File_sync(MPI_File fh, int i, vector *v) {
 int E_File_write(MPI_File fh, const void *buf, int count, MPI_Datatype datatype,
                  MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[126]++;
+    counters[126]++;
     QMPI_TABLE_QUERY(126, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 126, v, fh, buf, count, datatype, status);
     return ret;
@@ -1392,7 +1408,7 @@ int E_File_write_all(MPI_File fh, const void *buf, int count,
                      MPI_Datatype datatype, MPI_Status *status, int i,
                      vector *v) {
     void *f_dl = NULL;
-    counter[127]++;
+    counters[127]++;
     QMPI_TABLE_QUERY(127, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 127, v, fh, buf, count, datatype, status);
     return ret;
@@ -1403,7 +1419,7 @@ int E_File_write_all(MPI_File fh, const void *buf, int count,
 int E_File_write_all_begin(MPI_File fh, const void *buf, int count,
                            MPI_Datatype datatype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[128]++;
+    counters[128]++;
     QMPI_TABLE_QUERY(128, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 128, v, fh, buf, count, datatype);
     return ret;
@@ -1414,7 +1430,7 @@ int E_File_write_all_begin(MPI_File fh, const void *buf, int count,
 int E_File_write_all_end(MPI_File fh, const void *buf, MPI_Status *status,
                          int i, vector *v) {
     void *f_dl = NULL;
-    counter[129]++;
+    counters[129]++;
     QMPI_TABLE_QUERY(129, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 129, v, fh, buf, status);
     return ret;
@@ -1425,7 +1441,7 @@ int E_File_write_at(MPI_File fh, MPI_Offset offset, const void *buf, int count,
                     MPI_Datatype datatype, MPI_Status *status, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[130]++;
+    counters[130]++;
     QMPI_TABLE_QUERY(130, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 130, v, fh, offset, buf, count, datatype, status);
@@ -1437,7 +1453,7 @@ int E_File_write_at_all(MPI_File fh, MPI_Offset offset, const void *buf,
                         int count, MPI_Datatype datatype, MPI_Status *status,
                         int i, vector *v) {
     void *f_dl = NULL;
-    counter[131]++;
+    counters[131]++;
     QMPI_TABLE_QUERY(131, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 131, v, fh, offset, buf, count, datatype, status);
@@ -1450,7 +1466,7 @@ int E_File_write_at_all_begin(MPI_File fh, MPI_Offset offset, const void *buf,
                               int count, MPI_Datatype datatype, int i,
                               vector *v) {
     void *f_dl = NULL;
-    counter[132]++;
+    counters[132]++;
     QMPI_TABLE_QUERY(132, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 132, v, fh, offset, buf, count, datatype);
     return ret;
@@ -1461,7 +1477,7 @@ int E_File_write_at_all_begin(MPI_File fh, MPI_Offset offset, const void *buf,
 int E_File_write_at_all_end(MPI_File fh, const void *buf, MPI_Status *status,
                             int i, vector *v) {
     void *f_dl = NULL;
-    counter[133]++;
+    counters[133]++;
     QMPI_TABLE_QUERY(133, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 133, v, fh, buf, status);
     return ret;
@@ -1473,7 +1489,7 @@ int E_File_write_ordered(MPI_File fh, const void *buf, int count,
                          MPI_Datatype datatype, MPI_Status *status, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[134]++;
+    counters[134]++;
     QMPI_TABLE_QUERY(134, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 134, v, fh, buf, count, datatype, status);
     return ret;
@@ -1484,7 +1500,7 @@ int E_File_write_ordered(MPI_File fh, const void *buf, int count,
 int E_File_write_ordered_begin(MPI_File fh, const void *buf, int count,
                                MPI_Datatype datatype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[135]++;
+    counters[135]++;
     QMPI_TABLE_QUERY(135, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 135, v, fh, buf, count, datatype);
     return ret;
@@ -1495,7 +1511,7 @@ int E_File_write_ordered_begin(MPI_File fh, const void *buf, int count,
 int E_File_write_ordered_end(MPI_File fh, const void *buf, MPI_Status *status,
                              int i, vector *v) {
     void *f_dl = NULL;
-    counter[136]++;
+    counters[136]++;
     QMPI_TABLE_QUERY(136, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 136, v, fh, buf, status);
     return ret;
@@ -1506,7 +1522,7 @@ int E_File_write_shared(MPI_File fh, const void *buf, int count,
                         MPI_Datatype datatype, MPI_Status *status, int i,
                         vector *v) {
     void *f_dl = NULL;
-    counter[137]++;
+    counters[137]++;
     QMPI_TABLE_QUERY(137, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 137, v, fh, buf, count, datatype, status);
     return ret;
@@ -1515,7 +1531,7 @@ int E_File_write_shared(MPI_File fh, const void *buf, int count,
 
 int E_Finalized(int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[139]++;
+    counters[139]++;
     QMPI_TABLE_QUERY(139, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 139, v, flag);
     return ret;
@@ -1524,7 +1540,7 @@ int E_Finalized(int *flag, int i, vector *v) {
 
 int E_Free_mem(void *base, int i, vector *v) {
     void *f_dl = NULL;
-    counter[140]++;
+    counters[140]++;
     QMPI_TABLE_QUERY(140, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 140, v, base);
     return ret;
@@ -1535,7 +1551,7 @@ int E_Gather(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
              void *recvbuf, int recvcount, MPI_Datatype recvtype, int root,
              MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[141]++;
+    counters[141]++;
     QMPI_TABLE_QUERY(141, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 141, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, root, comm);
@@ -1548,7 +1564,7 @@ int E_Gatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
               MPI_Datatype recvtype, int root, MPI_Comm comm, int i,
               vector *v) {
     void *f_dl = NULL;
-    counter[142]++;
+    counters[142]++;
     QMPI_TABLE_QUERY(142, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 142, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcounts, displs, recvtype, root, comm);
@@ -1560,7 +1576,7 @@ int E_Get(void *origin_addr, int origin_count, MPI_Datatype origin_datatype,
           int target_rank, MPI_Aint target_disp, int target_count,
           MPI_Datatype target_datatype, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[143]++;
+    counters[143]++;
     QMPI_TABLE_QUERY(143, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 143, v, origin_addr, origin_count, origin_datatype,
@@ -1576,7 +1592,7 @@ int E_Get_accumulate(const void *origin_addr, int origin_count,
                      MPI_Datatype target_datatype, MPI_Op op, MPI_Win win,
                      int i, vector *v) {
     void *f_dl = NULL;
-    counter[144]++;
+    counters[144]++;
     QMPI_TABLE_QUERY(144, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 144, v, origin_addr, origin_count, origin_datatype,
@@ -1588,7 +1604,7 @@ int E_Get_accumulate(const void *origin_addr, int origin_count,
 
 int E_Get_address(const void *location, MPI_Aint *address, int i, vector *v) {
     void *f_dl = NULL;
-    counter[145]++;
+    counters[145]++;
     QMPI_TABLE_QUERY(145, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 145, v, location, address);
     return ret;
@@ -1598,7 +1614,7 @@ int E_Get_address(const void *location, MPI_Aint *address, int i, vector *v) {
 int E_Get_count(const MPI_Status *status, MPI_Datatype datatype, int *count,
                 int i, vector *v) {
     void *f_dl = NULL;
-    counter[146]++;
+    counters[146]++;
     QMPI_TABLE_QUERY(146, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 146, v, status, datatype, count);
     return ret;
@@ -1608,7 +1624,7 @@ int E_Get_count(const MPI_Status *status, MPI_Datatype datatype, int *count,
 int E_Get_elements(const MPI_Status *status, MPI_Datatype datatype, int *count,
                    int i, vector *v) {
     void *f_dl = NULL;
-    counter[147]++;
+    counters[147]++;
     QMPI_TABLE_QUERY(147, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 147, v, status, datatype, count);
     return ret;
@@ -1618,7 +1634,7 @@ int E_Get_elements(const MPI_Status *status, MPI_Datatype datatype, int *count,
 int E_Get_elements_x(const MPI_Status *status, MPI_Datatype datatype,
                      MPI_Count *count, int i, vector *v) {
     void *f_dl = NULL;
-    counter[148]++;
+    counters[148]++;
     QMPI_TABLE_QUERY(148, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 148, v, status, datatype, count);
     return ret;
@@ -1628,7 +1644,7 @@ int E_Get_elements_x(const MPI_Status *status, MPI_Datatype datatype,
 
 int E_Get_library_version(char *version, int *resultlen, int i, vector *v) {
     void *f_dl = NULL;
-    counter[149]++;
+    counters[149]++;
     QMPI_TABLE_QUERY(149, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 149, v, version, resultlen);
     return ret;
@@ -1638,7 +1654,7 @@ int E_Get_library_version(char *version, int *resultlen, int i, vector *v) {
 
 int E_Get_processor_name(char *name, int *resultlen, int i, vector *v) {
     void *f_dl = NULL;
-    counter[150]++;
+    counters[150]++;
     QMPI_TABLE_QUERY(150, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 150, v, name, resultlen);
     return ret;
@@ -1647,7 +1663,7 @@ int E_Get_processor_name(char *name, int *resultlen, int i, vector *v) {
 
 int E_Get_version(int *version, int *subversion, int i, vector *v) {
     void *f_dl = NULL;
-    counter[151]++;
+    counters[151]++;
     QMPI_TABLE_QUERY(151, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 151, v, version, subversion);
     return ret;
@@ -1658,7 +1674,7 @@ int E_Graph_create(MPI_Comm comm_old, int nnodes, const int index[],
                    const int edges[], int reorder, MPI_Comm *comm_graph, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[152]++;
+    counters[152]++;
     QMPI_TABLE_QUERY(152, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 152, v, comm_old, nnodes, index, edges,
                         reorder, comm_graph);
@@ -1669,7 +1685,7 @@ int E_Graph_create(MPI_Comm comm_old, int nnodes, const int index[],
 int E_Graph_get(MPI_Comm comm, int maxindex, int maxedges, int index[],
                 int edges[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[153]++;
+    counters[153]++;
     QMPI_TABLE_QUERY(153, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 153, v, comm, maxindex, maxedges, index, edges);
@@ -1680,7 +1696,7 @@ int E_Graph_get(MPI_Comm comm, int maxindex, int maxedges, int index[],
 int E_Graph_map(MPI_Comm comm, int nnodes, const int index[], const int edges[],
                 int *newrank, int i, vector *v) {
     void *f_dl = NULL;
-    counter[154]++;
+    counters[154]++;
     QMPI_TABLE_QUERY(154, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 154, v, comm, nnodes, index, edges, newrank);
     return ret;
@@ -1690,7 +1706,7 @@ int E_Graph_map(MPI_Comm comm, int nnodes, const int index[], const int edges[],
 int E_Graph_neighbors(MPI_Comm comm, int rank, int maxneighbors,
                       int neighbors[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[155]++;
+    counters[155]++;
     QMPI_TABLE_QUERY(155, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 155, v, comm, rank, maxneighbors, neighbors);
     return ret;
@@ -1701,7 +1717,7 @@ int E_Graph_neighbors(MPI_Comm comm, int rank, int maxneighbors,
 int E_Graph_neighbors_count(MPI_Comm comm, int rank, int *nneighbors, int i,
                             vector *v) {
     void *f_dl = NULL;
-    counter[156]++;
+    counters[156]++;
     QMPI_TABLE_QUERY(156, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 156, v, comm, rank, nneighbors);
     return ret;
@@ -1710,7 +1726,7 @@ int E_Graph_neighbors_count(MPI_Comm comm, int rank, int *nneighbors, int i,
 
 int E_Graphdims_get(MPI_Comm comm, int *nnodes, int *nedges, int i, vector *v) {
     void *f_dl = NULL;
-    counter[157]++;
+    counters[157]++;
     QMPI_TABLE_QUERY(157, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 157, v, comm, nnodes, nedges);
     return ret;
@@ -1719,7 +1735,7 @@ int E_Graphdims_get(MPI_Comm comm, int *nnodes, int *nedges, int i, vector *v) {
 
 int E_Grequest_complete(MPI_Request request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[158]++;
+    counters[158]++;
     QMPI_TABLE_QUERY(158, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 158, v, request);
     return ret;
@@ -1731,7 +1747,7 @@ int E_Grequest_start(MPI_Grequest_query_function *query_fn,
                      MPI_Grequest_cancel_function *cancel_fn, void *extra_state,
                      MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[159]++;
+    counters[159]++;
     QMPI_TABLE_QUERY(159, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 159, v, query_fn, free_fn, cancel_fn,
                         extra_state, request);
@@ -1742,7 +1758,7 @@ int E_Grequest_start(MPI_Grequest_query_function *query_fn,
 int E_Group_compare(MPI_Group group1, MPI_Group group2, int *result, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[160]++;
+    counters[160]++;
     QMPI_TABLE_QUERY(160, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 160, v, group1, group2, result);
     return ret;
@@ -1752,7 +1768,7 @@ int E_Group_compare(MPI_Group group1, MPI_Group group2, int *result, int i,
 int E_Group_difference(MPI_Group group1, MPI_Group group2, MPI_Group *newgroup,
                        int i, vector *v) {
     void *f_dl = NULL;
-    counter[161]++;
+    counters[161]++;
     QMPI_TABLE_QUERY(161, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 161, v, group1, group2, newgroup);
     return ret;
@@ -1762,7 +1778,7 @@ int E_Group_difference(MPI_Group group1, MPI_Group group2, MPI_Group *newgroup,
 int E_Group_excl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup,
                  int i, vector *v) {
     void *f_dl = NULL;
-    counter[162]++;
+    counters[162]++;
     QMPI_TABLE_QUERY(162, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 162, v, group, n, ranks, newgroup);
     return ret;
@@ -1771,7 +1787,7 @@ int E_Group_excl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup,
 
 int E_Group_free(MPI_Group *group, int i, vector *v) {
     void *f_dl = NULL;
-    counter[163]++;
+    counters[163]++;
     QMPI_TABLE_QUERY(163, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 163, v, group);
     return ret;
@@ -1781,7 +1797,7 @@ int E_Group_free(MPI_Group *group, int i, vector *v) {
 int E_Group_incl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup,
                  int i, vector *v) {
     void *f_dl = NULL;
-    counter[164]++;
+    counters[164]++;
     QMPI_TABLE_QUERY(164, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 164, v, group, n, ranks, newgroup);
     return ret;
@@ -1792,7 +1808,7 @@ int E_Group_incl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup,
 int E_Group_intersection(MPI_Group group1, MPI_Group group2,
                          MPI_Group *newgroup, int i, vector *v) {
     void *f_dl = NULL;
-    counter[165]++;
+    counters[165]++;
     QMPI_TABLE_QUERY(165, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 165, v, group1, group2, newgroup);
     return ret;
@@ -1802,7 +1818,7 @@ int E_Group_intersection(MPI_Group group1, MPI_Group group2,
 int E_Group_range_excl(MPI_Group group, int n, int ranges[][3],
                        MPI_Group *newgroup, int i, vector *v) {
     void *f_dl = NULL;
-    counter[166]++;
+    counters[166]++;
     QMPI_TABLE_QUERY(166, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 166, v, group, n, ranges, newgroup);
     return ret;
@@ -1812,7 +1828,7 @@ int E_Group_range_excl(MPI_Group group, int n, int ranges[][3],
 int E_Group_range_incl(MPI_Group group, int n, int ranges[][3],
                        MPI_Group *newgroup, int i, vector *v) {
     void *f_dl = NULL;
-    counter[167]++;
+    counters[167]++;
     QMPI_TABLE_QUERY(167, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 167, v, group, n, ranges, newgroup);
     return ret;
@@ -1821,7 +1837,7 @@ int E_Group_range_incl(MPI_Group group, int n, int ranges[][3],
 
 int E_Group_rank(MPI_Group group, int *rank, int i, vector *v) {
     void *f_dl = NULL;
-    counter[168]++;
+    counters[168]++;
     QMPI_TABLE_QUERY(168, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 168, v, group, rank);
     return ret;
@@ -1830,7 +1846,7 @@ int E_Group_rank(MPI_Group group, int *rank, int i, vector *v) {
 
 int E_Group_size(MPI_Group group, int *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[169]++;
+    counters[169]++;
     QMPI_TABLE_QUERY(169, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 169, v, group, size);
     return ret;
@@ -1841,7 +1857,7 @@ int E_Group_size(MPI_Group group, int *size, int i, vector *v) {
 int E_Group_translate_ranks(MPI_Group group1, int n, const int ranks1[],
                             MPI_Group group2, int ranks2[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[170]++;
+    counters[170]++;
     QMPI_TABLE_QUERY(170, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 170, v, group1, n, ranks1, group2, ranks2);
     return ret;
@@ -1851,7 +1867,7 @@ int E_Group_translate_ranks(MPI_Group group1, int n, const int ranks1[],
 int E_Group_union(MPI_Group group1, MPI_Group group2, MPI_Group *newgroup,
                   int i, vector *v) {
     void *f_dl = NULL;
-    counter[171]++;
+    counters[171]++;
     QMPI_TABLE_QUERY(171, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 171, v, group1, group2, newgroup);
     return ret;
@@ -1862,7 +1878,7 @@ int E_Iallgather(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                  void *recvbuf, int recvcount, MPI_Datatype recvtype,
                  MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[172]++;
+    counters[172]++;
     QMPI_TABLE_QUERY(172, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 172, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm, request);
@@ -1875,7 +1891,7 @@ int E_Iallgatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                   MPI_Datatype recvtype, MPI_Comm comm, MPI_Request *request,
                   int i, vector *v) {
     void *f_dl = NULL;
-    counter[173]++;
+    counters[173]++;
     QMPI_TABLE_QUERY(173, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 173, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcounts, displs, recvtype, comm, request);
@@ -1887,7 +1903,7 @@ int E_Iallreduce(const void *sendbuf, void *recvbuf, int count,
                  MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
                  MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[174]++;
+    counters[174]++;
     QMPI_TABLE_QUERY(174, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 174, v, sendbuf, recvbuf, count, datatype, op,
                         comm, request);
@@ -1899,7 +1915,7 @@ int E_Ialltoall(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                 void *recvbuf, int recvcount, MPI_Datatype recvtype,
                 MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[175]++;
+    counters[175]++;
     QMPI_TABLE_QUERY(175, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 175, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm, request);
@@ -1913,7 +1929,7 @@ int E_Ialltoallv(const void *sendbuf, const int sendcounts[],
                  MPI_Datatype recvtype, MPI_Comm comm, MPI_Request *request,
                  int i, vector *v) {
     void *f_dl = NULL;
-    counter[176]++;
+    counters[176]++;
     QMPI_TABLE_QUERY(176, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 176, v, sendbuf, sendcounts, sdispls, sendtype,
                         recvbuf, recvcounts, rdispls, recvtype, comm, request);
@@ -1926,7 +1942,7 @@ int E_Ialltoallw(const void *sendbuf, const int sendcounts[],
                  const MPI_Datatype recvtypes[], MPI_Comm comm,
                  MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[177]++;
+    counters[177]++;
     QMPI_TABLE_QUERY(177, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 177, v, sendbuf, sendcounts, sdispls, sendtypes,
@@ -1937,7 +1953,7 @@ int E_Ialltoallw(const void *sendbuf, const int sendcounts[],
 
 int E_Ibarrier(MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[178]++;
+    counters[178]++;
     QMPI_TABLE_QUERY(178, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 178, v, comm, request);
     return ret;
@@ -1947,7 +1963,7 @@ int E_Ibarrier(MPI_Comm comm, MPI_Request *request, int i, vector *v) {
 int E_Ibcast(void *buffer, int count, MPI_Datatype datatype, int root,
              MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[179]++;
+    counters[179]++;
     QMPI_TABLE_QUERY(179, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 179, v, buffer, count, datatype, root, comm,
                         request);
@@ -1958,7 +1974,7 @@ int E_Ibcast(void *buffer, int count, MPI_Datatype datatype, int root,
 int E_Ibsend(const void *buf, int count, MPI_Datatype datatype, int dest,
              int tag, MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[180]++;
+    counters[180]++;
     QMPI_TABLE_QUERY(180, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 180, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -1970,7 +1986,7 @@ int E_Iexscan(const void *sendbuf, void *recvbuf, int count,
               MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
               MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[181]++;
+    counters[181]++;
     QMPI_TABLE_QUERY(181, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 181, v, sendbuf, recvbuf, count, datatype, op,
                         comm, request);
@@ -1982,7 +1998,7 @@ int E_Igather(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
               void *recvbuf, int recvcount, MPI_Datatype recvtype, int root,
               MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[182]++;
+    counters[182]++;
     QMPI_TABLE_QUERY(182, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 182, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, root, comm, request);
@@ -1995,7 +2011,7 @@ int E_Igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                MPI_Datatype recvtype, int root, MPI_Comm comm,
                MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[183]++;
+    counters[183]++;
     QMPI_TABLE_QUERY(183, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 183, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcounts, displs, recvtype, root, comm, request);
@@ -2006,7 +2022,7 @@ int E_Igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
 int E_Improbe(int source, int tag, MPI_Comm comm, int *flag,
               MPI_Message *message, MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[184]++;
+    counters[184]++;
     QMPI_TABLE_QUERY(184, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 184, v, source, tag, comm, flag, message, status);
@@ -2017,7 +2033,7 @@ int E_Improbe(int source, int tag, MPI_Comm comm, int *flag,
 int E_Imrecv(void *buf, int count, MPI_Datatype type, MPI_Message *message,
              MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[185]++;
+    counters[185]++;
     QMPI_TABLE_QUERY(185, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 185, v, buf, count, type, message, request);
     return ret;
@@ -2030,7 +2046,7 @@ int E_Ineighbor_allgather(const void *sendbuf, int sendcount,
                           MPI_Datatype recvtype, MPI_Comm comm,
                           MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[186]++;
+    counters[186]++;
     QMPI_TABLE_QUERY(186, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 186, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm, request);
@@ -2045,7 +2061,7 @@ int E_Ineighbor_allgatherv(const void *sendbuf, int sendcount,
                            MPI_Datatype recvtype, MPI_Comm comm,
                            MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[187]++;
+    counters[187]++;
     QMPI_TABLE_QUERY(187, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 187, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcounts, displs, recvtype, comm, request);
@@ -2059,7 +2075,7 @@ int E_Ineighbor_alltoall(const void *sendbuf, int sendcount,
                          MPI_Datatype recvtype, MPI_Comm comm,
                          MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[188]++;
+    counters[188]++;
     QMPI_TABLE_QUERY(188, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 188, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm, request);
@@ -2075,7 +2091,7 @@ int E_Ineighbor_alltoallv(const void *sendbuf, const int sendcounts[],
                           MPI_Comm comm, MPI_Request *request, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[189]++;
+    counters[189]++;
     QMPI_TABLE_QUERY(189, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 189, v, sendbuf, sendcounts, sdispls, sendtype,
                         recvbuf, recvcounts, rdispls, recvtype, comm, request);
@@ -2091,7 +2107,7 @@ int E_Ineighbor_alltoallw(const void *sendbuf, const int sendcounts[],
                           const MPI_Datatype recvtypes[], MPI_Comm comm,
                           MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[190]++;
+    counters[190]++;
     QMPI_TABLE_QUERY(190, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 190, v, sendbuf, sendcounts, sdispls, sendtypes,
@@ -2102,7 +2118,7 @@ int E_Ineighbor_alltoallw(const void *sendbuf, const int sendcounts[],
 
 int E_Info_create(MPI_Info *info, int i, vector *v) {
     void *f_dl = NULL;
-    counter[191]++;
+    counters[191]++;
     QMPI_TABLE_QUERY(191, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 191, v, info);
     return ret;
@@ -2111,7 +2127,7 @@ int E_Info_create(MPI_Info *info, int i, vector *v) {
 
 int E_Info_delete(MPI_Info info, const char *key, int i, vector *v) {
     void *f_dl = NULL;
-    counter[192]++;
+    counters[192]++;
     QMPI_TABLE_QUERY(192, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 192, v, info, key);
     return ret;
@@ -2120,7 +2136,7 @@ int E_Info_delete(MPI_Info info, const char *key, int i, vector *v) {
 
 int E_Info_dup(MPI_Info info, MPI_Info *newinfo, int i, vector *v) {
     void *f_dl = NULL;
-    counter[193]++;
+    counters[193]++;
     QMPI_TABLE_QUERY(193, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 193, v, info, newinfo);
     return ret;
@@ -2129,7 +2145,7 @@ int E_Info_dup(MPI_Info info, MPI_Info *newinfo, int i, vector *v) {
 
 int E_Info_free(MPI_Info *info, int i, vector *v) {
     void *f_dl = NULL;
-    counter[194]++;
+    counters[194]++;
     QMPI_TABLE_QUERY(194, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 194, v, info);
     return ret;
@@ -2139,7 +2155,7 @@ int E_Info_free(MPI_Info *info, int i, vector *v) {
 int E_Info_get(MPI_Info info, const char *key, int valuelen, char *value,
                int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[195]++;
+    counters[195]++;
     QMPI_TABLE_QUERY(195, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 195, v, info, key, valuelen, value, flag);
     return ret;
@@ -2148,7 +2164,7 @@ int E_Info_get(MPI_Info info, const char *key, int valuelen, char *value,
 
 int E_Info_get_nkeys(MPI_Info info, int *nkeys, int i, vector *v) {
     void *f_dl = NULL;
-    counter[196]++;
+    counters[196]++;
     QMPI_TABLE_QUERY(196, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 196, v, info, nkeys);
     return ret;
@@ -2157,7 +2173,7 @@ int E_Info_get_nkeys(MPI_Info info, int *nkeys, int i, vector *v) {
 
 int E_Info_get_nthkey(MPI_Info info, int n, char *key, int i, vector *v) {
     void *f_dl = NULL;
-    counter[197]++;
+    counters[197]++;
     QMPI_TABLE_QUERY(197, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 197, v, info, n, key);
     return ret;
@@ -2167,7 +2183,7 @@ int E_Info_get_nthkey(MPI_Info info, int n, char *key, int i, vector *v) {
 int E_Info_get_valuelen(MPI_Info info, const char *key, int *valuelen,
                         int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[198]++;
+    counters[198]++;
     QMPI_TABLE_QUERY(198, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 198, v, info, key, valuelen, flag);
     return ret;
@@ -2177,7 +2193,7 @@ int E_Info_get_valuelen(MPI_Info info, const char *key, int *valuelen,
 int E_Info_set(MPI_Info info, const char *key, const char *value, int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[199]++;
+    counters[199]++;
     QMPI_TABLE_QUERY(199, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 199, v, info, key, value);
     return ret;
@@ -2188,7 +2204,7 @@ int E_Info_set(MPI_Info info, const char *key, const char *value, int i,
 int E_Init_thread(int *argc, char ***argv, int required, int *provided, int i,
                   vector *v) {
     void *f_dl = NULL;
-    counter[201]++;
+    counters[201]++;
     QMPI_TABLE_QUERY(201, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 201, v, argc, argv, required, provided);
     return ret;
@@ -2197,7 +2213,7 @@ int E_Init_thread(int *argc, char ***argv, int required, int *provided, int i,
 
 int E_Initialized(int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[202]++;
+    counters[202]++;
     QMPI_TABLE_QUERY(202, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 202, v, flag);
     return ret;
@@ -2208,7 +2224,7 @@ int E_Intercomm_create(MPI_Comm local_comm, int local_leader,
                        MPI_Comm bridge_comm, int remote_leader, int tag,
                        MPI_Comm *newintercomm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[203]++;
+    counters[203]++;
     QMPI_TABLE_QUERY(203, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 203, v, local_comm, local_leader, bridge_comm,
                         remote_leader, tag, newintercomm);
@@ -2219,7 +2235,7 @@ int E_Intercomm_create(MPI_Comm local_comm, int local_leader,
 int E_Intercomm_merge(MPI_Comm intercomm, int high, MPI_Comm *newintercomm,
                       int i, vector *v) {
     void *f_dl = NULL;
-    counter[204]++;
+    counters[204]++;
     QMPI_TABLE_QUERY(204, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 204, v, intercomm, high, newintercomm);
     return ret;
@@ -2229,7 +2245,7 @@ int E_Intercomm_merge(MPI_Comm intercomm, int high, MPI_Comm *newintercomm,
 int E_Iprobe(int source, int tag, MPI_Comm comm, int *flag, MPI_Status *status,
              int i, vector *v) {
     void *f_dl = NULL;
-    counter[205]++;
+    counters[205]++;
     QMPI_TABLE_QUERY(205, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 205, v, source, tag, comm, flag, status);
     return ret;
@@ -2239,7 +2255,7 @@ int E_Iprobe(int source, int tag, MPI_Comm comm, int *flag, MPI_Status *status,
 int E_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag,
             MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[206]++;
+    counters[206]++;
     QMPI_TABLE_QUERY(206, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 206, v, buf, count, datatype, source, tag,
                         comm, request);
@@ -2251,7 +2267,7 @@ int E_Ireduce(const void *sendbuf, void *recvbuf, int count,
               MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm,
               MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[207]++;
+    counters[207]++;
     QMPI_TABLE_QUERY(207, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 207, v, sendbuf, recvbuf, count, datatype, op,
                         root, comm, request);
@@ -2263,7 +2279,7 @@ int E_Ireduce_scatter(const void *sendbuf, void *recvbuf,
                       const int recvcounts[], MPI_Datatype datatype, MPI_Op op,
                       MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[208]++;
+    counters[208]++;
     QMPI_TABLE_QUERY(208, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 208, v, sendbuf, recvbuf, recvcounts, datatype,
                         op, comm, request);
@@ -2276,7 +2292,7 @@ int E_Ireduce_scatter_block(const void *sendbuf, void *recvbuf, int recvcount,
                             MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
                             MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[209]++;
+    counters[209]++;
     QMPI_TABLE_QUERY(209, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 209, v, sendbuf, recvbuf, recvcount, datatype,
                         op, comm, request);
@@ -2287,7 +2303,7 @@ int E_Ireduce_scatter_block(const void *sendbuf, void *recvbuf, int recvcount,
 int E_Irsend(const void *buf, int count, MPI_Datatype datatype, int dest,
              int tag, MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[210]++;
+    counters[210]++;
     QMPI_TABLE_QUERY(210, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 210, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -2297,7 +2313,7 @@ int E_Irsend(const void *buf, int count, MPI_Datatype datatype, int dest,
 
 int E_Is_thread_main(int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[211]++;
+    counters[211]++;
     QMPI_TABLE_QUERY(211, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 211, v, flag);
     return ret;
@@ -2308,7 +2324,7 @@ int E_Iscan(const void *sendbuf, void *recvbuf, int count,
             MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
             MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[212]++;
+    counters[212]++;
     QMPI_TABLE_QUERY(212, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 212, v, sendbuf, recvbuf, count, datatype, op,
                         comm, request);
@@ -2320,7 +2336,7 @@ int E_Iscatter(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                void *recvbuf, int recvcount, MPI_Datatype recvtype, int root,
                MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[213]++;
+    counters[213]++;
     QMPI_TABLE_QUERY(213, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 213, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, root, comm, request);
@@ -2333,7 +2349,7 @@ int E_Iscatterv(const void *sendbuf, const int sendcounts[], const int displs[],
                 MPI_Datatype recvtype, int root, MPI_Comm comm,
                 MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[214]++;
+    counters[214]++;
     QMPI_TABLE_QUERY(214, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 214, v, sendbuf, sendcounts, displs, sendtype,
                         recvbuf, recvcount, recvtype, root, comm, request);
@@ -2344,7 +2360,7 @@ int E_Iscatterv(const void *sendbuf, const int sendcounts[], const int displs[],
 int E_Isend(const void *buf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[215]++;
+    counters[215]++;
     QMPI_TABLE_QUERY(215, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 215, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -2355,7 +2371,7 @@ int E_Isend(const void *buf, int count, MPI_Datatype datatype, int dest,
 int E_Issend(const void *buf, int count, MPI_Datatype datatype, int dest,
              int tag, MPI_Comm comm, MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[216]++;
+    counters[216]++;
     QMPI_TABLE_QUERY(216, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 216, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -2366,7 +2382,7 @@ int E_Issend(const void *buf, int count, MPI_Datatype datatype, int dest,
 int E_Keyval_create(MPI_Copy_function *copy_fn, MPI_Delete_function *delete_fn,
                     int *keyval, void *extra_state, int i, vector *v) {
     void *f_dl = NULL;
-    counter[217]++;
+    counters[217]++;
     QMPI_TABLE_QUERY(217, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 217, v, copy_fn, delete_fn, keyval, extra_state);
@@ -2376,7 +2392,7 @@ int E_Keyval_create(MPI_Copy_function *copy_fn, MPI_Delete_function *delete_fn,
 
 int E_Keyval_free(int *keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[218]++;
+    counters[218]++;
     QMPI_TABLE_QUERY(218, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 218, v, keyval);
     return ret;
@@ -2386,7 +2402,7 @@ int E_Keyval_free(int *keyval, int i, vector *v) {
 int E_Lookup_name(const char *service_name, MPI_Info info, char *port_name,
                   int i, vector *v) {
     void *f_dl = NULL;
-    counter[219]++;
+    counters[219]++;
     QMPI_TABLE_QUERY(219, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 219, v, service_name, info, port_name);
     return ret;
@@ -2396,7 +2412,7 @@ int E_Lookup_name(const char *service_name, MPI_Info info, char *port_name,
 int E_Mprobe(int source, int tag, MPI_Comm comm, MPI_Message *message,
              MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[220]++;
+    counters[220]++;
     QMPI_TABLE_QUERY(220, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 220, v, source, tag, comm, message, status);
     return ret;
@@ -2406,7 +2422,7 @@ int E_Mprobe(int source, int tag, MPI_Comm comm, MPI_Message *message,
 int E_Mrecv(void *buf, int count, MPI_Datatype type, MPI_Message *message,
             MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[221]++;
+    counters[221]++;
     QMPI_TABLE_QUERY(221, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 221, v, buf, count, type, message, status);
     return ret;
@@ -2419,7 +2435,7 @@ int E_Neighbor_allgather(const void *sendbuf, int sendcount,
                          MPI_Datatype recvtype, MPI_Comm comm, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[222]++;
+    counters[222]++;
     QMPI_TABLE_QUERY(222, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 222, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm);
@@ -2434,7 +2450,7 @@ int E_Neighbor_allgatherv(const void *sendbuf, int sendcount,
                           MPI_Datatype recvtype, MPI_Comm comm, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[223]++;
+    counters[223]++;
     QMPI_TABLE_QUERY(223, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 223, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcounts, displs, recvtype, comm);
@@ -2447,7 +2463,7 @@ int E_Neighbor_alltoall(const void *sendbuf, int sendcount,
                         MPI_Datatype recvtype, MPI_Comm comm, int i,
                         vector *v) {
     void *f_dl = NULL;
-    counter[224]++;
+    counters[224]++;
     QMPI_TABLE_QUERY(224, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 224, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, comm);
@@ -2462,7 +2478,7 @@ int E_Neighbor_alltoallv(const void *sendbuf, const int sendcounts[],
                          const int rdispls[], MPI_Datatype recvtype,
                          MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[225]++;
+    counters[225]++;
     QMPI_TABLE_QUERY(225, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 225, v, sendbuf, sendcounts, sdispls, sendtype,
                         recvbuf, recvcounts, rdispls, recvtype, comm);
@@ -2478,7 +2494,7 @@ int E_Neighbor_alltoallw(const void *sendbuf, const int sendcounts[],
                          const MPI_Datatype recvtypes[], MPI_Comm comm, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[226]++;
+    counters[226]++;
     QMPI_TABLE_QUERY(226, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 226, v, sendbuf, sendcounts, sdispls, sendtypes,
@@ -2489,7 +2505,7 @@ int E_Neighbor_alltoallw(const void *sendbuf, const int sendcounts[],
 
 int E_Op_commutative(MPI_Op op, int *commute, int i, vector *v) {
     void *f_dl = NULL;
-    counter[227]++;
+    counters[227]++;
     QMPI_TABLE_QUERY(227, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 227, v, op, commute);
     return ret;
@@ -2499,7 +2515,7 @@ int E_Op_commutative(MPI_Op op, int *commute, int i, vector *v) {
 int E_Op_create(MPI_User_function *function, int commute, MPI_Op *op, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[228]++;
+    counters[228]++;
     QMPI_TABLE_QUERY(228, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 228, v, function, commute, op);
     return ret;
@@ -2508,7 +2524,7 @@ int E_Op_create(MPI_User_function *function, int commute, MPI_Op *op, int i,
 
 int E_Op_free(MPI_Op *op, int i, vector *v) {
     void *f_dl = NULL;
-    counter[229]++;
+    counters[229]++;
     QMPI_TABLE_QUERY(229, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 229, v, op);
     return ret;
@@ -2517,7 +2533,7 @@ int E_Op_free(MPI_Op *op, int i, vector *v) {
 
 int E_Open_port(MPI_Info info, char *port_name, int i, vector *v) {
     void *f_dl = NULL;
-    counter[230]++;
+    counters[230]++;
     QMPI_TABLE_QUERY(230, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 230, v, info, port_name);
     return ret;
@@ -2527,7 +2543,7 @@ int E_Open_port(MPI_Info info, char *port_name, int i, vector *v) {
 int E_Pack(const void *inbuf, int incount, MPI_Datatype datatype, void *outbuf,
            int outsize, int *position, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[231]++;
+    counters[231]++;
     QMPI_TABLE_QUERY(231, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 231, v, inbuf, incount, datatype, outbuf,
                         outsize, position, comm);
@@ -2539,7 +2555,7 @@ int E_Pack_external(const char datarep[], const void *inbuf, int incount,
                     MPI_Datatype datatype, void *outbuf, MPI_Aint outsize,
                     MPI_Aint *position, int i, vector *v) {
     void *f_dl = NULL;
-    counter[232]++;
+    counters[232]++;
     QMPI_TABLE_QUERY(232, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 232, v, datarep, inbuf, incount, datatype,
                         outbuf, outsize, position);
@@ -2552,7 +2568,7 @@ int E_Pack_external_size(const char datarep[], int incount,
                          MPI_Datatype datatype, MPI_Aint *size, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[233]++;
+    counters[233]++;
     QMPI_TABLE_QUERY(233, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 233, v, datarep, incount, datatype, size);
     return ret;
@@ -2562,7 +2578,7 @@ int E_Pack_external_size(const char datarep[], int incount,
 int E_Pack_size(int incount, MPI_Datatype datatype, MPI_Comm comm, int *size,
                 int i, vector *v) {
     void *f_dl = NULL;
-    counter[234]++;
+    counters[234]++;
     QMPI_TABLE_QUERY(234, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 234, v, incount, datatype, comm, size);
     return ret;
@@ -2571,7 +2587,7 @@ int E_Pack_size(int incount, MPI_Datatype datatype, MPI_Comm comm, int *size,
 
 int E_Pcontrol(const int level, int i, vector *v) {
     void *f_dl = NULL;
-    counter[235]++;
+    counters[235]++;
     QMPI_TABLE_QUERY(235, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 235, v, level);
     return ret;
@@ -2581,7 +2597,7 @@ int E_Pcontrol(const int level, int i, vector *v) {
 int E_Probe(int source, int tag, MPI_Comm comm, MPI_Status *status, int i,
             vector *v) {
     void *f_dl = NULL;
-    counter[236]++;
+    counters[236]++;
     QMPI_TABLE_QUERY(236, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 236, v, source, tag, comm, status);
     return ret;
@@ -2591,7 +2607,7 @@ int E_Probe(int source, int tag, MPI_Comm comm, MPI_Status *status, int i,
 int E_Publish_name(const char *service_name, MPI_Info info,
                    const char *port_name, int i, vector *v) {
     void *f_dl = NULL;
-    counter[237]++;
+    counters[237]++;
     QMPI_TABLE_QUERY(237, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 237, v, service_name, info, port_name);
     return ret;
@@ -2603,7 +2619,7 @@ int E_Put(const void *origin_addr, int origin_count,
           int target_count, MPI_Datatype target_datatype, MPI_Win win, int i,
           vector *v) {
     void *f_dl = NULL;
-    counter[238]++;
+    counters[238]++;
     QMPI_TABLE_QUERY(238, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 238, v, origin_addr, origin_count, origin_datatype,
@@ -2614,7 +2630,7 @@ int E_Put(const void *origin_addr, int origin_count,
 
 int E_Query_thread(int *provided, int i, vector *v) {
     void *f_dl = NULL;
-    counter[239]++;
+    counters[239]++;
     QMPI_TABLE_QUERY(239, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 239, v, provided);
     return ret;
@@ -2627,7 +2643,7 @@ int E_Raccumulate(const void *origin_addr, int origin_count,
                   MPI_Datatype target_datatype, MPI_Op op, MPI_Win win,
                   MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[240]++;
+    counters[240]++;
     QMPI_TABLE_QUERY(240, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 240, v, origin_addr, origin_count,
                         origin_datatype, target_rank, target_disp, target_count,
@@ -2639,7 +2655,7 @@ int E_Raccumulate(const void *origin_addr, int origin_count,
 int E_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag,
            MPI_Comm comm, MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[241]++;
+    counters[241]++;
     QMPI_TABLE_QUERY(241, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 241, v, buf, count, datatype, source, tag,
                         comm, status);
@@ -2651,7 +2667,7 @@ int E_Recv_init(void *buf, int count, MPI_Datatype datatype, int source,
                 int tag, MPI_Comm comm, MPI_Request *request, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[242]++;
+    counters[242]++;
     QMPI_TABLE_QUERY(242, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 242, v, buf, count, datatype, source, tag,
                         comm, request);
@@ -2663,7 +2679,7 @@ int E_Reduce(const void *sendbuf, void *recvbuf, int count,
              MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm, int i,
              vector *v) {
     void *f_dl = NULL;
-    counter[243]++;
+    counters[243]++;
     QMPI_TABLE_QUERY(243, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 243, v, sendbuf, recvbuf, count, datatype, op,
                         root, comm);
@@ -2674,7 +2690,7 @@ int E_Reduce(const void *sendbuf, void *recvbuf, int count,
 int E_Reduce_local(const void *inbuf, void *inoutbuf, int count,
                    MPI_Datatype datatype, MPI_Op op, int i, vector *v) {
     void *f_dl = NULL;
-    counter[244]++;
+    counters[244]++;
     QMPI_TABLE_QUERY(244, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 244, v, inbuf, inoutbuf, count, datatype, op);
     return ret;
@@ -2685,7 +2701,7 @@ int E_Reduce_scatter(const void *sendbuf, void *recvbuf, const int recvcounts[],
                      MPI_Datatype datatype, MPI_Op op, MPI_Comm comm, int i,
                      vector *v) {
     void *f_dl = NULL;
-    counter[245]++;
+    counters[245]++;
     QMPI_TABLE_QUERY(245, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 245, v, sendbuf, recvbuf, recvcounts, datatype,
                         op, comm);
@@ -2698,7 +2714,7 @@ int E_Reduce_scatter_block(const void *sendbuf, void *recvbuf, int recvcount,
                            MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
                            int i, vector *v) {
     void *f_dl = NULL;
-    counter[246]++;
+    counters[246]++;
     QMPI_TABLE_QUERY(246, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 246, v, sendbuf, recvbuf, recvcount, datatype,
                         op, comm);
@@ -2712,7 +2728,7 @@ int E_Register_datarep(const char *datarep,
                        MPI_Datarep_extent_function *dtype_file_extent_fn,
                        void *extra_state, int i, vector *v) {
     void *f_dl = NULL;
-    counter[247]++;
+    counters[247]++;
     QMPI_TABLE_QUERY(247, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 247, v, datarep, read_conversion_fn,
                         write_conversion_fn, dtype_file_extent_fn, extra_state);
@@ -2722,7 +2738,7 @@ int E_Register_datarep(const char *datarep,
 
 int E_Request_free(MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[248]++;
+    counters[248]++;
     QMPI_TABLE_QUERY(248, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 248, v, request);
     return ret;
@@ -2733,7 +2749,7 @@ int E_Request_free(MPI_Request *request, int i, vector *v) {
 int E_Request_get_status(MPI_Request request, int *flag, MPI_Status *status,
                          int i, vector *v) {
     void *f_dl = NULL;
-    counter[249]++;
+    counters[249]++;
     QMPI_TABLE_QUERY(249, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 249, v, request, flag, status);
     return ret;
@@ -2745,7 +2761,7 @@ int E_Rget(void *origin_addr, int origin_count, MPI_Datatype origin_datatype,
            MPI_Datatype target_datatype, MPI_Win win, MPI_Request *request,
            int i, vector *v) {
     void *f_dl = NULL;
-    counter[250]++;
+    counters[250]++;
     QMPI_TABLE_QUERY(250, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 250, v, origin_addr, origin_count,
                         origin_datatype, target_rank, target_disp, target_count,
@@ -2761,7 +2777,7 @@ int E_Rget_accumulate(const void *origin_addr, int origin_count,
                       MPI_Datatype target_datatype, MPI_Op op, MPI_Win win,
                       MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[251]++;
+    counters[251]++;
     QMPI_TABLE_QUERY(251, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 251, v, origin_addr, origin_count, origin_datatype,
@@ -2776,7 +2792,7 @@ int E_Rput(const void *origin_addr, int origin_count,
            int target_cout, MPI_Datatype target_datatype, MPI_Win win,
            MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[252]++;
+    counters[252]++;
     QMPI_TABLE_QUERY(252, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 252, v, origin_addr, origin_count,
                         origin_datatype, target_rank, target_disp, target_cout,
@@ -2788,7 +2804,7 @@ int E_Rput(const void *origin_addr, int origin_count,
 int E_Rsend(const void *ibuf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[253]++;
+    counters[253]++;
     QMPI_TABLE_QUERY(253, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 253, v, ibuf, count, datatype, dest, tag, comm);
@@ -2800,7 +2816,7 @@ int E_Rsend_init(const void *buf, int count, MPI_Datatype datatype, int dest,
                  int tag, MPI_Comm comm, MPI_Request *request, int i,
                  vector *v) {
     void *f_dl = NULL;
-    counter[254]++;
+    counters[254]++;
     QMPI_TABLE_QUERY(254, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 254, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -2811,7 +2827,7 @@ int E_Rsend_init(const void *buf, int count, MPI_Datatype datatype, int dest,
 int E_Scan(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype,
            MPI_Op op, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[255]++;
+    counters[255]++;
     QMPI_TABLE_QUERY(255, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 255, v, sendbuf, recvbuf, count, datatype, op, comm);
@@ -2823,7 +2839,7 @@ int E_Scatter(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
               void *recvbuf, int recvcount, MPI_Datatype recvtype, int root,
               MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[256]++;
+    counters[256]++;
     QMPI_TABLE_QUERY(256, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 256, v, sendbuf, sendcount, sendtype, recvbuf,
                         recvcount, recvtype, root, comm);
@@ -2836,7 +2852,7 @@ int E_Scatterv(const void *sendbuf, const int sendcounts[], const int displs[],
                MPI_Datatype recvtype, int root, MPI_Comm comm, int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[257]++;
+    counters[257]++;
     QMPI_TABLE_QUERY(257, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 257, v, sendbuf, sendcounts, displs, sendtype,
                         recvbuf, recvcount, recvtype, root, comm);
@@ -2847,7 +2863,7 @@ int E_Scatterv(const void *sendbuf, const int sendcounts[], const int displs[],
 int E_Send(const void *buf, int count, MPI_Datatype datatype, int dest, int tag,
            MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[258]++;
+    counters[258]++;
     QMPI_TABLE_QUERY(258, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 258, v, buf, count, datatype, dest, tag, comm);
     return ret;
@@ -2858,7 +2874,7 @@ int E_Send_init(const void *buf, int count, MPI_Datatype datatype, int dest,
                 int tag, MPI_Comm comm, MPI_Request *request, int i,
                 vector *v) {
     void *f_dl = NULL;
-    counter[259]++;
+    counters[259]++;
     QMPI_TABLE_QUERY(259, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 259, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -2871,7 +2887,7 @@ int E_Sendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                MPI_Datatype recvtype, int source, int recvtag, MPI_Comm comm,
                MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[260]++;
+    counters[260]++;
     QMPI_TABLE_QUERY(260, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 260, v, sendbuf, sendcount, sendtype, dest, sendtag,
@@ -2884,7 +2900,7 @@ int E_Sendrecv_replace(void *buf, int count, MPI_Datatype datatype, int dest,
                        int sendtag, int source, int recvtag, MPI_Comm comm,
                        MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[261]++;
+    counters[261]++;
     QMPI_TABLE_QUERY(261, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 261, v, buf, count, datatype, dest, sendtag,
                         source, recvtag, comm, status);
@@ -2895,7 +2911,7 @@ int E_Sendrecv_replace(void *buf, int count, MPI_Datatype datatype, int dest,
 int E_Ssend(const void *buf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
-    counter[262]++;
+    counters[262]++;
     QMPI_TABLE_QUERY(262, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 262, v, buf, count, datatype, dest, tag, comm);
     return ret;
@@ -2906,7 +2922,7 @@ int E_Ssend_init(const void *buf, int count, MPI_Datatype datatype, int dest,
                  int tag, MPI_Comm comm, MPI_Request *request, int i,
                  vector *v) {
     void *f_dl = NULL;
-    counter[263]++;
+    counters[263]++;
     QMPI_TABLE_QUERY(263, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 263, v, buf, count, datatype, dest, tag, comm,
                         request);
@@ -2916,7 +2932,7 @@ int E_Ssend_init(const void *buf, int count, MPI_Datatype datatype, int dest,
 
 int E_Start(MPI_Request *request, int i, vector *v) {
     void *f_dl = NULL;
-    counter[264]++;
+    counters[264]++;
     QMPI_TABLE_QUERY(264, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 264, v, request);
     return ret;
@@ -2925,7 +2941,7 @@ int E_Start(MPI_Request *request, int i, vector *v) {
 
 int E_Startall(int count, MPI_Request array_of_requests[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[265]++;
+    counters[265]++;
     QMPI_TABLE_QUERY(265, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 265, v, count, array_of_requests);
     return ret;
@@ -2935,7 +2951,7 @@ int E_Startall(int count, MPI_Request array_of_requests[], int i, vector *v) {
 
 int E_Status_set_cancelled(MPI_Status *status, int flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[266]++;
+    counters[266]++;
     QMPI_TABLE_QUERY(266, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 266, v, status, flag);
     return ret;
@@ -2946,7 +2962,7 @@ int E_Status_set_cancelled(MPI_Status *status, int flag, int i, vector *v) {
 int E_Status_set_elements(MPI_Status *status, MPI_Datatype datatype, int count,
                           int i, vector *v) {
     void *f_dl = NULL;
-    counter[267]++;
+    counters[267]++;
     QMPI_TABLE_QUERY(267, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 267, v, status, datatype, count);
     return ret;
@@ -2957,7 +2973,7 @@ int E_Status_set_elements(MPI_Status *status, MPI_Datatype datatype, int count,
 int E_Status_set_elements_x(MPI_Status *status, MPI_Datatype datatype,
                             MPI_Count count, int i, vector *v) {
     void *f_dl = NULL;
-    counter[268]++;
+    counters[268]++;
     QMPI_TABLE_QUERY(268, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 268, v, status, datatype, count);
     return ret;
@@ -2967,7 +2983,7 @@ int E_Status_set_elements_x(MPI_Status *status, MPI_Datatype datatype,
 int E_Test(MPI_Request *request, int *flag, MPI_Status *status, int i,
            vector *v) {
     void *f_dl = NULL;
-    counter[269]++;
+    counters[269]++;
     QMPI_TABLE_QUERY(269, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 269, v, request, flag, status);
     return ret;
@@ -2976,7 +2992,7 @@ int E_Test(MPI_Request *request, int *flag, MPI_Status *status, int i,
 
 int E_Test_cancelled(const MPI_Status *status, int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[270]++;
+    counters[270]++;
     QMPI_TABLE_QUERY(270, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 270, v, status, flag);
     return ret;
@@ -2986,7 +3002,7 @@ int E_Test_cancelled(const MPI_Status *status, int *flag, int i, vector *v) {
 int E_Testall(int count, MPI_Request array_of_requests[], int *flag,
               MPI_Status array_of_statuses[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[271]++;
+    counters[271]++;
     QMPI_TABLE_QUERY(271, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 271, v, count, array_of_requests, flag,
                         array_of_statuses);
@@ -2997,7 +3013,7 @@ int E_Testall(int count, MPI_Request array_of_requests[], int *flag,
 int E_Testany(int count, MPI_Request array_of_requests[], int *index, int *flag,
               MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[272]++;
+    counters[272]++;
     QMPI_TABLE_QUERY(272, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 272, v, count, array_of_requests, index, flag,
                         status);
@@ -3009,7 +3025,7 @@ int E_Testsome(int incount, MPI_Request array_of_requests[], int *outcount,
                int array_of_indices[], MPI_Status array_of_statuses[], int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[273]++;
+    counters[273]++;
     QMPI_TABLE_QUERY(273, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 273, v, incount, array_of_requests, outcount,
                         array_of_indices, array_of_statuses);
@@ -3019,7 +3035,7 @@ int E_Testsome(int incount, MPI_Request array_of_requests[], int *outcount,
 
 int E_Topo_test(MPI_Comm comm, int *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[274]++;
+    counters[274]++;
     QMPI_TABLE_QUERY(274, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 274, v, comm, status);
     return ret;
@@ -3028,7 +3044,7 @@ int E_Topo_test(MPI_Comm comm, int *status, int i, vector *v) {
 
 int E_Type_commit(MPI_Datatype *type, int i, vector *v) {
     void *f_dl = NULL;
-    counter[275]++;
+    counters[275]++;
     QMPI_TABLE_QUERY(275, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 275, v, type);
     return ret;
@@ -3038,7 +3054,7 @@ int E_Type_commit(MPI_Datatype *type, int i, vector *v) {
 int E_Type_contiguous(int count, MPI_Datatype oldtype, MPI_Datatype *newtype,
                       int i, vector *v) {
     void *f_dl = NULL;
-    counter[276]++;
+    counters[276]++;
     QMPI_TABLE_QUERY(276, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 276, v, count, oldtype, newtype);
     return ret;
@@ -3052,7 +3068,7 @@ int E_Type_create_darray(int size, int rank, int ndims, const int gsize_array[],
                          MPI_Datatype oldtype, MPI_Datatype *newtype, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[277]++;
+    counters[277]++;
     QMPI_TABLE_QUERY(277, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 277, v, size, rank, ndims, gsize_array,
                         distrib_array, darg_array, psize_array, order, oldtype,
@@ -3065,7 +3081,7 @@ int E_Type_create_darray(int size, int rank, int ndims, const int gsize_array[],
 int E_Type_create_f90_complex(int p, int r, MPI_Datatype *newtype, int i,
                               vector *v) {
     void *f_dl = NULL;
-    counter[278]++;
+    counters[278]++;
     QMPI_TABLE_QUERY(278, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 278, v, p, r, newtype);
     return ret;
@@ -3075,7 +3091,7 @@ int E_Type_create_f90_complex(int p, int r, MPI_Datatype *newtype, int i,
 
 int E_Type_create_f90_integer(int r, MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[279]++;
+    counters[279]++;
     QMPI_TABLE_QUERY(279, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 279, v, r, newtype);
     return ret;
@@ -3086,7 +3102,7 @@ int E_Type_create_f90_integer(int r, MPI_Datatype *newtype, int i, vector *v) {
 int E_Type_create_f90_real(int p, int r, MPI_Datatype *newtype, int i,
                            vector *v) {
     void *f_dl = NULL;
-    counter[280]++;
+    counters[280]++;
     QMPI_TABLE_QUERY(280, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 280, v, p, r, newtype);
     return ret;
@@ -3099,7 +3115,7 @@ int E_Type_create_hindexed(int count, const int array_of_blocklengths[],
                            MPI_Datatype oldtype, MPI_Datatype *newtype, int i,
                            vector *v) {
     void *f_dl = NULL;
-    counter[281]++;
+    counters[281]++;
     QMPI_TABLE_QUERY(281, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 281, v, count, array_of_blocklengths,
                         array_of_displacements, oldtype, newtype);
@@ -3113,7 +3129,7 @@ int E_Type_create_hindexed_block(int count, int blocklength,
                                  MPI_Datatype oldtype, MPI_Datatype *newtype,
                                  int i, vector *v) {
     void *f_dl = NULL;
-    counter[282]++;
+    counters[282]++;
     QMPI_TABLE_QUERY(282, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 282, v, count, blocklength,
                         array_of_displacements, oldtype, newtype);
@@ -3126,7 +3142,7 @@ int E_Type_create_hvector(int count, int blocklength, MPI_Aint stride,
                           MPI_Datatype oldtype, MPI_Datatype *newtype, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[283]++;
+    counters[283]++;
     QMPI_TABLE_QUERY(283, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 283, v, count, blocklength, stride, oldtype,
                         newtype);
@@ -3140,7 +3156,7 @@ int E_Type_create_indexed_block(int count, int blocklength,
                                 MPI_Datatype oldtype, MPI_Datatype *newtype,
                                 int i, vector *v) {
     void *f_dl = NULL;
-    counter[284]++;
+    counters[284]++;
     QMPI_TABLE_QUERY(284, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 284, v, count, blocklength,
                         array_of_displacements, oldtype, newtype);
@@ -3154,7 +3170,7 @@ int E_Type_create_keyval(MPI_Type_copy_attr_function *type_copy_attr_fn,
                          int *type_keyval, void *extra_state, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[285]++;
+    counters[285]++;
     QMPI_TABLE_QUERY(285, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 285, v, type_copy_attr_fn, type_delete_attr_fn,
                         type_keyval, extra_state);
@@ -3166,7 +3182,7 @@ int E_Type_create_keyval(MPI_Type_copy_attr_function *type_copy_attr_fn,
 int E_Type_create_resized(MPI_Datatype oldtype, MPI_Aint lb, MPI_Aint extent,
                           MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[286]++;
+    counters[286]++;
     QMPI_TABLE_QUERY(286, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 286, v, oldtype, lb, extent, newtype);
     return ret;
@@ -3179,7 +3195,7 @@ int E_Type_create_struct(int count, const int array_of_block_lengths[],
                          const MPI_Datatype array_of_types[],
                          MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[287]++;
+    counters[287]++;
     QMPI_TABLE_QUERY(287, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 287, v, count, array_of_block_lengths,
                         array_of_displacements, array_of_types, newtype);
@@ -3193,7 +3209,7 @@ int E_Type_create_subarray(int ndims, const int size_array[],
                            int order, MPI_Datatype oldtype,
                            MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[288]++;
+    counters[288]++;
     QMPI_TABLE_QUERY(288, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 288, v, ndims, size_array, subsize_array,
                         start_array, order, oldtype, newtype);
@@ -3203,7 +3219,7 @@ int E_Type_create_subarray(int ndims, const int size_array[],
 
 int E_Type_delete_attr(MPI_Datatype type, int type_keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[289]++;
+    counters[289]++;
     QMPI_TABLE_QUERY(289, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 289, v, type, type_keyval);
     return ret;
@@ -3212,7 +3228,7 @@ int E_Type_delete_attr(MPI_Datatype type, int type_keyval, int i, vector *v) {
 
 int E_Type_dup(MPI_Datatype type, MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[290]++;
+    counters[290]++;
     QMPI_TABLE_QUERY(290, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 290, v, type, newtype);
     return ret;
@@ -3221,7 +3237,7 @@ int E_Type_dup(MPI_Datatype type, MPI_Datatype *newtype, int i, vector *v) {
 
 int E_Type_extent(MPI_Datatype type, MPI_Aint *extent, int i, vector *v) {
     void *f_dl = NULL;
-    counter[291]++;
+    counters[291]++;
     QMPI_TABLE_QUERY(291, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 291, v, type, extent);
     return ret;
@@ -3230,7 +3246,7 @@ int E_Type_extent(MPI_Datatype type, MPI_Aint *extent, int i, vector *v) {
 
 int E_Type_free(MPI_Datatype *type, int i, vector *v) {
     void *f_dl = NULL;
-    counter[292]++;
+    counters[292]++;
     QMPI_TABLE_QUERY(292, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 292, v, type);
     return ret;
@@ -3239,7 +3255,7 @@ int E_Type_free(MPI_Datatype *type, int i, vector *v) {
 
 int E_Type_free_keyval(int *type_keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[293]++;
+    counters[293]++;
     QMPI_TABLE_QUERY(293, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 293, v, type_keyval);
     return ret;
@@ -3249,7 +3265,7 @@ int E_Type_free_keyval(int *type_keyval, int i, vector *v) {
 int E_Type_get_attr(MPI_Datatype type, int type_keyval, void *attribute_val,
                     int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[294]++;
+    counters[294]++;
     QMPI_TABLE_QUERY(294, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 294, v, type, type_keyval, attribute_val, flag);
@@ -3262,7 +3278,7 @@ int E_Type_get_contents(MPI_Datatype mtype, int max_integers, int max_addresses,
                         MPI_Aint array_of_addresses[],
                         MPI_Datatype array_of_datatypes[], int i, vector *v) {
     void *f_dl = NULL;
-    counter[295]++;
+    counters[295]++;
     QMPI_TABLE_QUERY(295, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 295, v, mtype, max_integers, max_addresses,
                         max_datatypes, array_of_integers, array_of_addresses,
@@ -3275,7 +3291,7 @@ int E_Type_get_envelope(MPI_Datatype type, int *num_integers,
                         int *num_addresses, int *num_datatypes, int *combiner,
                         int i, vector *v) {
     void *f_dl = NULL;
-    counter[296]++;
+    counters[296]++;
     QMPI_TABLE_QUERY(296, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 296, v, type, num_integers, num_addresses,
                         num_datatypes, combiner);
@@ -3286,7 +3302,7 @@ int E_Type_get_envelope(MPI_Datatype type, int *num_integers,
 int E_Type_get_extent(MPI_Datatype type, MPI_Aint *lb, MPI_Aint *extent, int i,
                       vector *v) {
     void *f_dl = NULL;
-    counter[297]++;
+    counters[297]++;
     QMPI_TABLE_QUERY(297, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 297, v, type, lb, extent);
     return ret;
@@ -3296,7 +3312,7 @@ int E_Type_get_extent(MPI_Datatype type, MPI_Aint *lb, MPI_Aint *extent, int i,
 int E_Type_get_extent_x(MPI_Datatype type, MPI_Count *lb, MPI_Count *extent,
                         int i, vector *v) {
     void *f_dl = NULL;
-    counter[298]++;
+    counters[298]++;
     QMPI_TABLE_QUERY(298, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 298, v, type, lb, extent);
     return ret;
@@ -3306,7 +3322,7 @@ int E_Type_get_extent_x(MPI_Datatype type, MPI_Count *lb, MPI_Count *extent,
 int E_Type_get_name(MPI_Datatype type, char *type_name, int *resultlen, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[299]++;
+    counters[299]++;
     QMPI_TABLE_QUERY(299, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 299, v, type, type_name, resultlen);
     return ret;
@@ -3317,7 +3333,7 @@ int E_Type_get_name(MPI_Datatype type, char *type_name, int *resultlen, int i,
 int E_Type_get_true_extent(MPI_Datatype datatype, MPI_Aint *true_lb,
                            MPI_Aint *true_extent, int i, vector *v) {
     void *f_dl = NULL;
-    counter[300]++;
+    counters[300]++;
     QMPI_TABLE_QUERY(300, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 300, v, datatype, true_lb, true_extent);
     return ret;
@@ -3328,7 +3344,7 @@ int E_Type_get_true_extent(MPI_Datatype datatype, MPI_Aint *true_lb,
 int E_Type_get_true_extent_x(MPI_Datatype datatype, MPI_Count *true_lb,
                              MPI_Count *true_extent, int i, vector *v) {
     void *f_dl = NULL;
-    counter[301]++;
+    counters[301]++;
     QMPI_TABLE_QUERY(301, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 301, v, datatype, true_lb, true_extent);
     return ret;
@@ -3339,7 +3355,7 @@ int E_Type_hindexed(int count, int array_of_blocklengths[],
                     MPI_Aint array_of_displacements[], MPI_Datatype oldtype,
                     MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[302]++;
+    counters[302]++;
     QMPI_TABLE_QUERY(302, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 302, v, count, array_of_blocklengths,
                         array_of_displacements, oldtype, newtype);
@@ -3351,7 +3367,7 @@ int E_Type_hvector(int count, int blocklength, MPI_Aint stride,
                    MPI_Datatype oldtype, MPI_Datatype *newtype, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[303]++;
+    counters[303]++;
     QMPI_TABLE_QUERY(303, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 303, v, count, blocklength, stride, oldtype,
                         newtype);
@@ -3363,7 +3379,7 @@ int E_Type_indexed(int count, const int array_of_blocklengths[],
                    const int array_of_displacements[], MPI_Datatype oldtype,
                    MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[304]++;
+    counters[304]++;
     QMPI_TABLE_QUERY(304, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 304, v, count, array_of_blocklengths,
                         array_of_displacements, oldtype, newtype);
@@ -3373,7 +3389,7 @@ int E_Type_indexed(int count, const int array_of_blocklengths[],
 
 int E_Type_lb(MPI_Datatype type, MPI_Aint *lb, int i, vector *v) {
     void *f_dl = NULL;
-    counter[305]++;
+    counters[305]++;
     QMPI_TABLE_QUERY(305, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 305, v, type, lb);
     return ret;
@@ -3383,7 +3399,7 @@ int E_Type_lb(MPI_Datatype type, MPI_Aint *lb, int i, vector *v) {
 int E_Type_match_size(int typeclass, int size, MPI_Datatype *type, int i,
                       vector *v) {
     void *f_dl = NULL;
-    counter[306]++;
+    counters[306]++;
     QMPI_TABLE_QUERY(306, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 306, v, typeclass, size, type);
     return ret;
@@ -3393,7 +3409,7 @@ int E_Type_match_size(int typeclass, int size, MPI_Datatype *type, int i,
 int E_Type_set_attr(MPI_Datatype type, int type_keyval, void *attr_val, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[307]++;
+    counters[307]++;
     QMPI_TABLE_QUERY(307, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 307, v, type, type_keyval, attr_val);
     return ret;
@@ -3403,7 +3419,7 @@ int E_Type_set_attr(MPI_Datatype type, int type_keyval, void *attr_val, int i,
 int E_Type_set_name(MPI_Datatype type, const char *type_name, int i,
                     vector *v) {
     void *f_dl = NULL;
-    counter[308]++;
+    counters[308]++;
     QMPI_TABLE_QUERY(308, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 308, v, type, type_name);
     return ret;
@@ -3412,7 +3428,7 @@ int E_Type_set_name(MPI_Datatype type, const char *type_name, int i,
 
 int E_Type_size(MPI_Datatype type, int *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[309]++;
+    counters[309]++;
     QMPI_TABLE_QUERY(309, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 309, v, type, size);
     return ret;
@@ -3421,7 +3437,7 @@ int E_Type_size(MPI_Datatype type, int *size, int i, vector *v) {
 
 int E_Type_size_x(MPI_Datatype type, MPI_Count *size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[310]++;
+    counters[310]++;
     QMPI_TABLE_QUERY(310, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 310, v, type, size);
     return ret;
@@ -3433,7 +3449,7 @@ int E_Type_struct(int count, int array_of_blocklengths[],
                   MPI_Datatype array_of_types[], MPI_Datatype *newtype, int i,
                   vector *v) {
     void *f_dl = NULL;
-    counter[311]++;
+    counters[311]++;
     QMPI_TABLE_QUERY(311, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 311, v, count, array_of_blocklengths,
                         array_of_displacements, array_of_types, newtype);
@@ -3443,7 +3459,7 @@ int E_Type_struct(int count, int array_of_blocklengths[],
 
 int E_Type_ub(MPI_Datatype mtype, MPI_Aint *ub, int i, vector *v) {
     void *f_dl = NULL;
-    counter[312]++;
+    counters[312]++;
     QMPI_TABLE_QUERY(312, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 312, v, mtype, ub);
     return ret;
@@ -3453,7 +3469,7 @@ int E_Type_ub(MPI_Datatype mtype, MPI_Aint *ub, int i, vector *v) {
 int E_Type_vector(int count, int blocklength, int stride, MPI_Datatype oldtype,
                   MPI_Datatype *newtype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[313]++;
+    counters[313]++;
     QMPI_TABLE_QUERY(313, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 313, v, count, blocklength, stride, oldtype,
                         newtype);
@@ -3465,7 +3481,7 @@ int E_Unpack(const void *inbuf, int insize, int *position, void *outbuf,
              int outcount, MPI_Datatype datatype, MPI_Comm comm, int i,
              vector *v) {
     void *f_dl = NULL;
-    counter[314]++;
+    counters[314]++;
     QMPI_TABLE_QUERY(314, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 314, v, inbuf, insize, position, outbuf,
                         outcount, datatype, comm);
@@ -3477,7 +3493,7 @@ int E_Unpack_external(const char datarep[], const void *inbuf, MPI_Aint insize,
                       MPI_Aint *position, void *outbuf, int outcount,
                       MPI_Datatype datatype, int i, vector *v) {
     void *f_dl = NULL;
-    counter[315]++;
+    counters[315]++;
     QMPI_TABLE_QUERY(315, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 315, v, datarep, inbuf, insize, position,
                         outbuf, outcount, datatype);
@@ -3488,7 +3504,7 @@ int E_Unpack_external(const char datarep[], const void *inbuf, MPI_Aint insize,
 int E_Unpublish_name(const char *service_name, MPI_Info info,
                      const char *port_name, int i, vector *v) {
     void *f_dl = NULL;
-    counter[316]++;
+    counters[316]++;
     QMPI_TABLE_QUERY(316, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 316, v, service_name, info, port_name);
     return ret;
@@ -3497,7 +3513,7 @@ int E_Unpublish_name(const char *service_name, MPI_Info info,
 
 int E_Wait(MPI_Request *request, MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[317]++;
+    counters[317]++;
     QMPI_TABLE_QUERY(317, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 317, v, request, status);
     return ret;
@@ -3507,7 +3523,7 @@ int E_Wait(MPI_Request *request, MPI_Status *status, int i, vector *v) {
 int E_Waitall(int count, MPI_Request array_of_requests[],
               MPI_Status *array_of_statuses, int i, vector *v) {
     void *f_dl = NULL;
-    counter[318]++;
+    counters[318]++;
     QMPI_TABLE_QUERY(318, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 318, v, count, array_of_requests, array_of_statuses);
@@ -3518,7 +3534,7 @@ int E_Waitall(int count, MPI_Request array_of_requests[],
 int E_Waitany(int count, MPI_Request array_of_requests[], int *index,
               MPI_Status *status, int i, vector *v) {
     void *f_dl = NULL;
-    counter[319]++;
+    counters[319]++;
     QMPI_TABLE_QUERY(319, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 319, v, count, array_of_requests, index, status);
@@ -3530,7 +3546,7 @@ int E_Waitsome(int incount, MPI_Request array_of_requests[], int *outcount,
                int array_of_indices[], MPI_Status array_of_statuses[], int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[320]++;
+    counters[320]++;
     QMPI_TABLE_QUERY(320, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 320, v, incount, array_of_requests, outcount,
                         array_of_indices, array_of_statuses);
@@ -3541,7 +3557,7 @@ int E_Waitsome(int incount, MPI_Request array_of_requests[], int *outcount,
 int E_Win_allocate(MPI_Aint size, int disp_unit, MPI_Info info, MPI_Comm comm,
                    void *baseptr, MPI_Win *win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[321]++;
+    counters[321]++;
     QMPI_TABLE_QUERY(321, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 321, v, size, disp_unit, info, comm, baseptr, win);
@@ -3554,7 +3570,7 @@ int E_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info,
                           MPI_Comm comm, void *baseptr, MPI_Win *win, int i,
                           vector *v) {
     void *f_dl = NULL;
-    counter[322]++;
+    counters[322]++;
     QMPI_TABLE_QUERY(322, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 322, v, size, disp_unit, info, comm, baseptr, win);
@@ -3564,7 +3580,7 @@ int E_Win_allocate_shared(MPI_Aint size, int disp_unit, MPI_Info info,
 
 int E_Win_attach(MPI_Win win, void *base, MPI_Aint size, int i, vector *v) {
     void *f_dl = NULL;
-    counter[323]++;
+    counters[323]++;
     QMPI_TABLE_QUERY(323, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 323, v, win, base, size);
     return ret;
@@ -3574,7 +3590,7 @@ int E_Win_attach(MPI_Win win, void *base, MPI_Aint size, int i, vector *v) {
 
 int E_Win_call_errhandler(MPI_Win win, int errorcode, int i, vector *v) {
     void *f_dl = NULL;
-    counter[324]++;
+    counters[324]++;
     QMPI_TABLE_QUERY(324, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 324, v, win, errorcode);
     return ret;
@@ -3583,7 +3599,7 @@ int E_Win_call_errhandler(MPI_Win win, int errorcode, int i, vector *v) {
 
 int E_Win_complete(MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[325]++;
+    counters[325]++;
     QMPI_TABLE_QUERY(325, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 325, v, win);
     return ret;
@@ -3593,7 +3609,7 @@ int E_Win_complete(MPI_Win win, int i, vector *v) {
 int E_Win_create(void *base, MPI_Aint size, int disp_unit, MPI_Info info,
                  MPI_Comm comm, MPI_Win *win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[326]++;
+    counters[326]++;
     QMPI_TABLE_QUERY(326, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 326, v, base, size, disp_unit, info, comm, win);
@@ -3605,7 +3621,7 @@ int E_Win_create(void *base, MPI_Aint size, int disp_unit, MPI_Info info,
 int E_Win_create_dynamic(MPI_Info info, MPI_Comm comm, MPI_Win *win, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[327]++;
+    counters[327]++;
     QMPI_TABLE_QUERY(327, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 327, v, info, comm, win);
     return ret;
@@ -3616,7 +3632,7 @@ int E_Win_create_dynamic(MPI_Info info, MPI_Comm comm, MPI_Win *win, int i,
 int E_Win_create_errhandler(MPI_Win_errhandler_function *function,
                             MPI_Errhandler *errhandler, int i, vector *v) {
     void *f_dl = NULL;
-    counter[328]++;
+    counters[328]++;
     QMPI_TABLE_QUERY(328, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 328, v, function, errhandler);
     return ret;
@@ -3627,7 +3643,7 @@ int E_Win_create_keyval(MPI_Win_copy_attr_function *win_copy_attr_fn,
                         MPI_Win_delete_attr_function *win_delete_attr_fn,
                         int *win_keyval, void *extra_state, int i, vector *v) {
     void *f_dl = NULL;
-    counter[329]++;
+    counters[329]++;
     QMPI_TABLE_QUERY(329, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 329, v, win_copy_attr_fn, win_delete_attr_fn,
                         win_keyval, extra_state);
@@ -3637,7 +3653,7 @@ int E_Win_create_keyval(MPI_Win_copy_attr_function *win_copy_attr_fn,
 
 int E_Win_delete_attr(MPI_Win win, int win_keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[330]++;
+    counters[330]++;
     QMPI_TABLE_QUERY(330, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 330, v, win, win_keyval);
     return ret;
@@ -3646,7 +3662,7 @@ int E_Win_delete_attr(MPI_Win win, int win_keyval, int i, vector *v) {
 
 int E_Win_detach(MPI_Win win, const void *base, int i, vector *v) {
     void *f_dl = NULL;
-    counter[331]++;
+    counters[331]++;
     QMPI_TABLE_QUERY(331, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 331, v, win, base);
     return ret;
@@ -3655,7 +3671,7 @@ int E_Win_detach(MPI_Win win, const void *base, int i, vector *v) {
 
 int E_Win_fence(int assert, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[332]++;
+    counters[332]++;
     QMPI_TABLE_QUERY(332, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 332, v, assert, win);
     return ret;
@@ -3664,7 +3680,7 @@ int E_Win_fence(int assert, MPI_Win win, int i, vector *v) {
 
 int E_Win_flush(int rank, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[333]++;
+    counters[333]++;
     QMPI_TABLE_QUERY(333, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 333, v, rank, win);
     return ret;
@@ -3673,7 +3689,7 @@ int E_Win_flush(int rank, MPI_Win win, int i, vector *v) {
 
 int E_Win_flush_all(MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[334]++;
+    counters[334]++;
     QMPI_TABLE_QUERY(334, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 334, v, win);
     return ret;
@@ -3682,7 +3698,7 @@ int E_Win_flush_all(MPI_Win win, int i, vector *v) {
 
 int E_Win_flush_local(int rank, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[335]++;
+    counters[335]++;
     QMPI_TABLE_QUERY(335, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 335, v, rank, win);
     return ret;
@@ -3692,7 +3708,7 @@ int E_Win_flush_local(int rank, MPI_Win win, int i, vector *v) {
 
 int E_Win_flush_local_all(MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[336]++;
+    counters[336]++;
     QMPI_TABLE_QUERY(336, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 336, v, win);
     return ret;
@@ -3701,7 +3717,7 @@ int E_Win_flush_local_all(MPI_Win win, int i, vector *v) {
 
 int E_Win_free(MPI_Win *win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[337]++;
+    counters[337]++;
     QMPI_TABLE_QUERY(337, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 337, v, win);
     return ret;
@@ -3710,7 +3726,7 @@ int E_Win_free(MPI_Win *win, int i, vector *v) {
 
 int E_Win_free_keyval(int *win_keyval, int i, vector *v) {
     void *f_dl = NULL;
-    counter[338]++;
+    counters[338]++;
     QMPI_TABLE_QUERY(338, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 338, v, win_keyval);
     return ret;
@@ -3720,7 +3736,7 @@ int E_Win_free_keyval(int *win_keyval, int i, vector *v) {
 int E_Win_get_attr(MPI_Win win, int win_keyval, void *attribute_val, int *flag,
                    int i, vector *v) {
     void *f_dl = NULL;
-    counter[339]++;
+    counters[339]++;
     QMPI_TABLE_QUERY(339, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 339, v, win, win_keyval, attribute_val, flag);
     return ret;
@@ -3731,7 +3747,7 @@ int E_Win_get_attr(MPI_Win win, int win_keyval, void *attribute_val, int *flag,
 int E_Win_get_errhandler(MPI_Win win, MPI_Errhandler *errhandler, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[340]++;
+    counters[340]++;
     QMPI_TABLE_QUERY(340, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 340, v, win, errhandler);
     return ret;
@@ -3740,7 +3756,7 @@ int E_Win_get_errhandler(MPI_Win win, MPI_Errhandler *errhandler, int i,
 
 int E_Win_get_group(MPI_Win win, MPI_Group *group, int i, vector *v) {
     void *f_dl = NULL;
-    counter[341]++;
+    counters[341]++;
     QMPI_TABLE_QUERY(341, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 341, v, win, group);
     return ret;
@@ -3749,7 +3765,7 @@ int E_Win_get_group(MPI_Win win, MPI_Group *group, int i, vector *v) {
 
 int E_Win_get_info(MPI_Win win, MPI_Info *info_used, int i, vector *v) {
     void *f_dl = NULL;
-    counter[342]++;
+    counters[342]++;
     QMPI_TABLE_QUERY(342, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 342, v, win, info_used);
     return ret;
@@ -3759,7 +3775,7 @@ int E_Win_get_info(MPI_Win win, MPI_Info *info_used, int i, vector *v) {
 int E_Win_get_name(MPI_Win win, char *win_name, int *resultlen, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[343]++;
+    counters[343]++;
     QMPI_TABLE_QUERY(343, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 343, v, win, win_name, resultlen);
     return ret;
@@ -3769,7 +3785,7 @@ int E_Win_get_name(MPI_Win win, char *win_name, int *resultlen, int i,
 int E_Win_lock(int lock_type, int rank, int assert, MPI_Win win, int i,
                vector *v) {
     void *f_dl = NULL;
-    counter[344]++;
+    counters[344]++;
     QMPI_TABLE_QUERY(344, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 344, v, lock_type, rank, assert, win);
     return ret;
@@ -3778,7 +3794,7 @@ int E_Win_lock(int lock_type, int rank, int assert, MPI_Win win, int i,
 
 int E_Win_lock_all(int assert, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[345]++;
+    counters[345]++;
     QMPI_TABLE_QUERY(345, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 345, v, assert, win);
     return ret;
@@ -3787,7 +3803,7 @@ int E_Win_lock_all(int assert, MPI_Win win, int i, vector *v) {
 
 int E_Win_post(MPI_Group group, int assert, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[346]++;
+    counters[346]++;
     QMPI_TABLE_QUERY(346, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 346, v, group, assert, win);
     return ret;
@@ -3797,7 +3813,7 @@ int E_Win_post(MPI_Group group, int assert, MPI_Win win, int i, vector *v) {
 int E_Win_set_attr(MPI_Win win, int win_keyval, void *attribute_val, int i,
                    vector *v) {
     void *f_dl = NULL;
-    counter[347]++;
+    counters[347]++;
     QMPI_TABLE_QUERY(347, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 347, v, win, win_keyval, attribute_val);
     return ret;
@@ -3808,7 +3824,7 @@ int E_Win_set_attr(MPI_Win win, int win_keyval, void *attribute_val, int i,
 int E_Win_set_errhandler(MPI_Win win, MPI_Errhandler errhandler, int i,
                          vector *v) {
     void *f_dl = NULL;
-    counter[348]++;
+    counters[348]++;
     QMPI_TABLE_QUERY(348, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 348, v, win, errhandler);
     return ret;
@@ -3817,7 +3833,7 @@ int E_Win_set_errhandler(MPI_Win win, MPI_Errhandler errhandler, int i,
 
 int E_Win_set_info(MPI_Win win, MPI_Info info, int i, vector *v) {
     void *f_dl = NULL;
-    counter[349]++;
+    counters[349]++;
     QMPI_TABLE_QUERY(349, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 349, v, win, info);
     return ret;
@@ -3826,7 +3842,7 @@ int E_Win_set_info(MPI_Win win, MPI_Info info, int i, vector *v) {
 
 int E_Win_set_name(MPI_Win win, const char *win_name, int i, vector *v) {
     void *f_dl = NULL;
-    counter[350]++;
+    counters[350]++;
     QMPI_TABLE_QUERY(350, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 350, v, win, win_name);
     return ret;
@@ -3836,7 +3852,7 @@ int E_Win_set_name(MPI_Win win, const char *win_name, int i, vector *v) {
 int E_Win_shared_query(MPI_Win win, int rank, MPI_Aint *size, int *disp_unit,
                        void *baseptr, int i, vector *v) {
     void *f_dl = NULL;
-    counter[351]++;
+    counters[351]++;
     QMPI_TABLE_QUERY(351, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 351, v, win, rank, size, disp_unit, baseptr);
     return ret;
@@ -3845,7 +3861,7 @@ int E_Win_shared_query(MPI_Win win, int rank, MPI_Aint *size, int *disp_unit,
 
 int E_Win_start(MPI_Group group, int assert, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[352]++;
+    counters[352]++;
     QMPI_TABLE_QUERY(352, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 352, v, group, assert, win);
     return ret;
@@ -3854,7 +3870,7 @@ int E_Win_start(MPI_Group group, int assert, MPI_Win win, int i, vector *v) {
 
 int E_Win_sync(MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[353]++;
+    counters[353]++;
     QMPI_TABLE_QUERY(353, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 353, v, win);
     return ret;
@@ -3863,7 +3879,7 @@ int E_Win_sync(MPI_Win win, int i, vector *v) {
 
 int E_Win_test(MPI_Win win, int *flag, int i, vector *v) {
     void *f_dl = NULL;
-    counter[354]++;
+    counters[354]++;
     QMPI_TABLE_QUERY(354, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 354, v, win, flag);
     return ret;
@@ -3872,7 +3888,7 @@ int E_Win_test(MPI_Win win, int *flag, int i, vector *v) {
 
 int E_Win_unlock(int rank, MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[355]++;
+    counters[355]++;
     QMPI_TABLE_QUERY(355, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 355, v, rank, win);
     return ret;
@@ -3881,7 +3897,7 @@ int E_Win_unlock(int rank, MPI_Win win, int i, vector *v) {
 
 int E_Win_unlock_all(MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[356]++;
+    counters[356]++;
     QMPI_TABLE_QUERY(356, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 356, v, win);
     return ret;
@@ -3890,7 +3906,7 @@ int E_Win_unlock_all(MPI_Win win, int i, vector *v) {
 
 int E_Win_wait(MPI_Win win, int i, vector *v) {
     void *f_dl = NULL;
-    counter[357]++;
+    counters[357]++;
     QMPI_TABLE_QUERY(357, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 357, v, win);
     return ret;
@@ -3899,7 +3915,7 @@ int E_Win_wait(MPI_Win win, int i, vector *v) {
 
 double E_Wtick(int i, vector *v) {
     void *f_dl = NULL;
-    counter[358]++;
+    counters[358]++;
     QMPI_TABLE_QUERY(358, &f_dl, (*VECTOR_GET(v, i)).table);
 
     // int ret=EXEC_FUNC(f_dl,i,358,v);
@@ -3921,7 +3937,7 @@ double E_Wtick(int i, vector *v) {
 
 double E_Wtime(int i, vector *v) {
     void *f_dl = NULL;
-    counter[359]++;
+    counters[359]++;
     QMPI_TABLE_QUERY(359, &f_dl, (*VECTOR_GET(v, i)).table);
 
     // int ret=EXEC_FUNC(f_dl,i,359,v);
