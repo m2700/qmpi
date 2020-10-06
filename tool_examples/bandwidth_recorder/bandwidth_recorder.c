@@ -61,6 +61,14 @@ void send_data_record(int count, MPI_Datatype datatype) {
     case MPI_UNSIGNED:
         INT_SEND_COUNT++;
         break;
+
+    case MPI_FLOAT:
+        FLOAT_SEND_COUNT++;
+        break;
+
+    case MPI_DOUBLE:
+        DOUBLE_SEND_COUNT++;
+        break;
     }
 }
 void recv_data_record(int count, MPI_Datatype datatype) {
@@ -92,6 +100,54 @@ void recv_data_record(int count, MPI_Datatype datatype) {
     case MPI_INT:
     case MPI_UNSIGNED:
         INT_RECV_COUNT++;
+        break;
+
+    case MPI_FLOAT:
+        FLOAT_RECV_COUNT++;
+        break;
+
+    case MPI_DOUBLE:
+        DOUBLE_RECV_COUNT++;
+        break;
+    }
+}
+void reduce_data_record(int count, MPI_Datatype datatype) {
+    switch (datatype) {
+    case MPI_UINT8_T:
+    case MPI_INT8_T:
+    case MPI_CHAR:
+    case MPI_UNSIGNED_CHAR:
+    case MPI_SIGNED_CHAR:
+    case MPI_BYTE:
+        I8_RDC_COUNT++;
+        break;
+
+    case MPI_UINT16_T:
+    case MPI_INT16_T:
+        I16_RDC_COUNT++;
+        break;
+
+    case MPI_UINT32_T:
+    case MPI_INT32_T:
+        I32_RDC_COUNT++;
+        break;
+
+    case MPI_UINT64_T:
+    case MPI_INT64_T:
+        I64_RDC_COUNT++;
+        break;
+
+    case MPI_INT:
+    case MPI_UNSIGNED:
+        INT_RDC_COUNT++;
+        break;
+
+    case MPI_FLOAT:
+        FLOAT_RDC_COUNT++;
+        break;
+
+    case MPI_DOUBLE:
+        DOUBLE_RDC_COUNT++;
         break;
     }
 }
@@ -138,52 +194,148 @@ int E_Finalize(int i, vector *v) {
 
 int E_Send(const void *buf, int count, MPI_Datatype datatype, int dest, int tag,
            MPI_Comm comm, int i, vector *v) {
-    send_data_record(count, datatype);
     void *f_dl = NULL;
     QMPI_TABLE_QUERY(258, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 258, v, buf, count, datatype, dest, tag, comm);
+
+    if (ret == MPI_SUCCESS){
+        send_data_record(count, datatype);
+    }
+
     return ret;
 }
 /* ================== C Wrappers for MPI_Bsend ================== 18*/
 
 int E_Bsend(const void *buf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, int i, vector *v) {
-    send_data_record(count, datatype);
     void *f_dl = NULL;
     QMPI_TABLE_QUERY(18, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 18, v, buf, count, datatype, dest, tag, comm);
+
+    if (ret == MPI_SUCCESS){
+        send_data_record(count, datatype);
+    }
+
     return ret;
 }
 /* ================== C Wrappers for MPI_Rsend ================== */
 
 int E_Rsend(const void *ibuf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, int i, vector *v) {
-    send_data_record(count, datatype);
     void *f_dl = NULL;
     QMPI_TABLE_QUERY(253, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret =
         EXEC_FUNC(f_dl, i, 253, v, ibuf, count, datatype, dest, tag, comm);
+
+    if (ret == MPI_SUCCESS){
+        send_data_record(count, datatype);
+    }
+
     return ret;
 }
 /* ================== C Wrappers for MPI_Ssend ================== */
 
 int E_Ssend(const void *buf, int count, MPI_Datatype datatype, int dest,
             int tag, MPI_Comm comm, int i, vector *v) {
-    send_data_record(count, datatype);
     void *f_dl = NULL;
     QMPI_TABLE_QUERY(262, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 262, v, buf, count, datatype, dest, tag, comm);
+
+    if (ret == MPI_SUCCESS){
+        send_data_record(count, datatype);
+    }
+
     return ret;
 }
 /* ================== C Wrappers for MPI_Recv ================== */
 
 int E_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag,
            MPI_Comm comm, MPI_Status *status, int i, vector *v) {
-    recv_data_record(count, datatype);
     void *f_dl = NULL;
     QMPI_TABLE_QUERY(241, &f_dl, (*VECTOR_GET(v, i)).table);
+
+    MPI_Status local_status;
     int ret = EXEC_FUNC(f_dl, i, 241, v, buf, count, datatype, source, tag,
-                        comm, status);
+                        comm, &local_status);
+    if (status != MPI_STATUS_IGNORE) {
+        *status = local_status;
+    }
+
+    if (ret == MPI_SUCCESS){
+        ret = PMPI_Get_count(&local_status, datatype, &count);
+        if (ret == MPI_SUCCESS) {
+            recv_data_record(count, datatype);
+        }
+    }
+
+    return ret;
+}
+/* ================== C Wrappers for MPI_Sendrecv ================== */
+
+int E_Sendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
+               int dest, int sendtag, void *recvbuf, int recvcount,
+               MPI_Datatype recvtype, int source, int recvtag, MPI_Comm comm,
+               MPI_Status *status, int i, vector *v) {
+    void *f_dl = NULL;
+    QMPI_TABLE_QUERY(260, &f_dl, (*VECTOR_GET(v, i)).table);
+
+    MPI_Status local_status;
+    int ret =
+        EXEC_FUNC(f_dl, i, 260, v, sendbuf, sendcount, sendtype, dest, sendtag,
+                  recvbuf, recvcount, recvtype, source, recvtag, comm, &local_status);
+    if (status != MPI_STATUS_IGNORE) {
+      *status = local_status;
+    }
+
+    if (ret == MPI_SUCCESS){
+        ret = PMPI_Get_count(&local_status, recvtype, &recvcount);
+        if (ret == MPI_SUCCESS) {
+            recv_data_record(recvcount, recvtype);
+        }
+    }
+
+    return ret;
+}
+/* ================== C Wrappers for MPI_Bcast ================== 17*/
+
+int E_Bcast(void *buffer, int count, MPI_Datatype datatype, int root,
+            MPI_Comm comm, int i, vector *v) {
+    void *f_dl = NULL;
+    QMPI_TABLE_QUERY(17, &f_dl, (*VECTOR_GET(v, i)).table);
+    int ret = EXEC_FUNC(f_dl, i, 17, v, buffer, count, datatype, root, comm);
+
+    if (ret == MPI_SUCCESS){
+        int curr_rank;
+        ret = PMPI_Comm_rank(comm, &curr_rank);
+        if (ret == MPI_SUCCESS) {
+            if (curr_rank == root) {
+                int comm_size;
+                ret = PMPI_Comm_size(comm, &comm_size);
+                if (ret == MPI_SUCCESS) {
+                    send_data_record(count * (comm_size - 1), datatype);
+                }
+            } else {
+                recv_data_record(count, datatype);
+            }
+        }
+    }
+
+    return ret;
+}
+/* ================== C Wrappers for MPI_Allreduce ================== 9*/
+
+int E_Allreduce(const void *sendbuf, void *recvbuf, int count,
+                MPI_Datatype datatype, MPI_Op op, MPI_Comm comm, int i,
+                vector *v) {
+    void *f_dl = NULL;
+    QMPI_TABLE_QUERY(9, &f_dl, (*VECTOR_GET(v, i)).table);
+    int ret =
+        EXEC_FUNC(f_dl, i, 9, v, sendbuf, recvbuf, count, datatype, op, comm);
+
+    if (ret == MPI_SUCCESS){
+        reduce_data_record(count, datatype);
+    }
+
     return ret;
 }
 
@@ -281,17 +433,6 @@ int E_Alloc_mem(MPI_Aint size, MPI_Info info, void *baseptr, int i, vector *v) {
     int ret = EXEC_FUNC(f_dl, i, 8, v, size, info, baseptr);
     return ret;
 }
-/* ================== C Wrappers for MPI_Allreduce ================== 9*/
-
-int E_Allreduce(const void *sendbuf, void *recvbuf, int count,
-                MPI_Datatype datatype, MPI_Op op, MPI_Comm comm, int i,
-                vector *v) {
-    void *f_dl = NULL;
-    QMPI_TABLE_QUERY(9, &f_dl, (*VECTOR_GET(v, i)).table);
-    int ret =
-        EXEC_FUNC(f_dl, i, 9, v, sendbuf, recvbuf, count, datatype, op, comm);
-    return ret;
-}
 /* ================== C Wrappers for MPI_Alltoall ================== 10*/
 
 int E_Alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
@@ -360,15 +501,6 @@ int E_Barrier(MPI_Comm comm, int i, vector *v) {
     void *f_dl = NULL;
     QMPI_TABLE_QUERY(16, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 16, v, comm);
-    return ret;
-}
-/* ================== C Wrappers for MPI_Bcast ================== 17*/
-
-int E_Bcast(void *buffer, int count, MPI_Datatype datatype, int root,
-            MPI_Comm comm, int i, vector *v) {
-    void *f_dl = NULL;
-    QMPI_TABLE_QUERY(17, &f_dl, (*VECTOR_GET(v, i)).table);
-    int ret = EXEC_FUNC(f_dl, i, 17, v, buffer, count, datatype, root, comm);
     return ret;
 }
 /* ================== C Wrappers for MPI_Bsend_init ==================19 */
@@ -2700,19 +2832,6 @@ int E_Send_init(const void *buf, int count, MPI_Datatype datatype, int dest,
     QMPI_TABLE_QUERY(259, &f_dl, (*VECTOR_GET(v, i)).table);
     int ret = EXEC_FUNC(f_dl, i, 259, v, buf, count, datatype, dest, tag, comm,
                         request);
-    return ret;
-}
-/* ================== C Wrappers for MPI_Sendrecv ================== */
-
-int E_Sendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
-               int dest, int sendtag, void *recvbuf, int recvcount,
-               MPI_Datatype recvtype, int source, int recvtag, MPI_Comm comm,
-               MPI_Status *status, int i, vector *v) {
-    void *f_dl = NULL;
-    QMPI_TABLE_QUERY(260, &f_dl, (*VECTOR_GET(v, i)).table);
-    int ret =
-        EXEC_FUNC(f_dl, i, 260, v, sendbuf, sendcount, sendtype, dest, sendtag,
-                  recvbuf, recvcount, recvtype, source, recvtag, comm, status);
     return ret;
 }
 /* ================== C Wrappers for MPI_Sendrecv_replace ================== */
