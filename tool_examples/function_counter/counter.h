@@ -10,4 +10,4 @@ _Static_assert(sizeof(sig_atomic_t) == sizeof(int),
 _Static_assert(alignof(sig_atomic_t) == alignof(int),
                "sig_atomic_t has to be int for MPI to work!");
 
-volatile sig_atomic_t counters[NUM_MPI_FUNCS] = {0};
+sig_atomic_t _Atomic counters[NUM_MPI_FUNCS] = {0};

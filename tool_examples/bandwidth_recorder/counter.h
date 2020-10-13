@@ -9,7 +9,7 @@ _Static_assert(alignof(sig_atomic_t) == alignof(int),
                "sig_atomic_t has to be int for MPI to work!");
 
 #define COUNTERS_LEN 21
-volatile sig_atomic_t counters[COUNTERS_LEN] = {0};
+int _Atomic counters[COUNTERS_LEN] = {0};
 
 #define I8_SEND_COUNT counters[0]
 #define I16_SEND_COUNT counters[1]
