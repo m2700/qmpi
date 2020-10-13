@@ -1,3 +1,6 @@
+# Branch
+This is my branch of the QMPI repository which I used in my bachelors thesis. It has some minor changes in the original code and two additional tool examples.
+
 # QMPI - The Next Generation Profiling Interface for MPI
 
 This is the README for QMPI 0.1. 
